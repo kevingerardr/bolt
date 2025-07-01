@@ -85,12 +85,12 @@ class Player {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.width = 16;
-        this.height = 24;
+        this.width = 32;
+        this.height = 48;
         this.health = 100;
         this.maxHealth = 100;
         this.angle = 0;
-        this.bowLength = 20;
+        this.bowLength = 40;
     }
     
     update() {
@@ -110,11 +110,11 @@ class Player {
         
         // Draw bow
         ctx.strokeStyle = '#8B4513';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.beginPath();
         
-        const bowX = Math.cos(this.angle) * 8;
-        const bowY = Math.sin(this.angle) * 8;
+        const bowX = Math.cos(this.angle) * 16;
+        const bowY = Math.sin(this.angle) * 16;
         
         ctx.moveTo(bowX, bowY);
         ctx.lineTo(bowX + Math.cos(this.angle) * this.bowLength, bowY + Math.sin(this.angle) * this.bowLength);
@@ -123,15 +123,15 @@ class Player {
         // Draw bow string
         if (gameState.isCharging) {
             ctx.strokeStyle = '#654321';
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 2;
             ctx.beginPath();
             
-            const stringOffset = gameState.chargePower * 0.15;
+            const stringOffset = gameState.chargePower * 0.3;
             const perpAngle = this.angle + Math.PI / 2;
             
-            ctx.moveTo(bowX + Math.cos(perpAngle) * 6, bowY + Math.sin(perpAngle) * 6);
+            ctx.moveTo(bowX + Math.cos(perpAngle) * 12, bowY + Math.sin(perpAngle) * 12);
             ctx.lineTo(bowX - Math.cos(this.angle) * stringOffset, bowY - Math.sin(this.angle) * stringOffset);
-            ctx.lineTo(bowX - Math.cos(perpAngle) * 6, bowY - Math.sin(perpAngle) * 6);
+            ctx.lineTo(bowX - Math.cos(perpAngle) * 12, bowY - Math.sin(perpAngle) * 12);
             ctx.stroke();
         }
         
@@ -150,8 +150,8 @@ class Player {
         const vy = Math.sin(this.angle) * velocity;
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([2, 2]);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
         ctx.beginPath();
         
         let x = this.x;
@@ -211,8 +211,8 @@ class Player {
         const vy = Math.sin(this.angle) * velocity;
         
         const arrow = new Arrow(
-            this.x + Math.cos(this.angle) * 12,
-            this.y + Math.sin(this.angle) * 12,
+            this.x + Math.cos(this.angle) * 24,
+            this.y + Math.sin(this.angle) * 24,
             vx, vy, arrowType
         );
         
@@ -230,17 +230,17 @@ class Enemy {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.width = 14;
-        this.height = 22;
+        this.width = 28;
+        this.height = 44;
         this.health = 50;
         this.maxHealth = 50;
         this.angle = 0;
-        this.bowLength = 16;
+        this.bowLength = 32;
         this.shootTimer = 0;
         this.shootCooldown = 60 + Math.random() * 60; // 1-2 seconds at 60fps
         this.moveTimer = 0;
         this.moveDirection = Math.random() * Math.PI * 2;
-        this.speed = 0.3 + Math.random() * 0.3;
+        this.speed = 0.6 + Math.random() * 0.6;
         this.chargePower = 0;
         this.isCharging = false;
     }
@@ -257,10 +257,10 @@ class Enemy {
         const newX = this.x + Math.cos(this.moveDirection) * this.speed;
         const newY = this.y + Math.sin(this.moveDirection) * this.speed;
         
-        if (newX > 20 && newX < canvas.width - 20) {
+        if (newX > 40 && newX < canvas.width - 40) {
             this.x = newX;
         }
-        if (newY > 20 && newY < canvas.height - 20) {
+        if (newY > 40 && newY < canvas.height - 40) {
             this.y = newY;
         }
         
@@ -295,8 +295,8 @@ class Enemy {
         const vy = Math.sin(this.angle) * velocity;
         
         const arrow = new Arrow(
-            this.x + Math.cos(this.angle) * 10,
-            this.y + Math.sin(this.angle) * 10,
+            this.x + Math.cos(this.angle) * 20,
+            this.y + Math.sin(this.angle) * 20,
             vx, vy, 'enemy'
         );
         
@@ -318,11 +318,11 @@ class Enemy {
         
         // Draw bow
         ctx.strokeStyle = '#8B4513';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         
-        const bowX = Math.cos(this.angle) * 6;
-        const bowY = Math.sin(this.angle) * 6;
+        const bowX = Math.cos(this.angle) * 12;
+        const bowY = Math.sin(this.angle) * 12;
         
         ctx.moveTo(bowX, bowY);
         ctx.lineTo(bowX + Math.cos(this.angle) * this.bowLength, bowY + Math.sin(this.angle) * this.bowLength);
@@ -330,9 +330,9 @@ class Enemy {
         
         // Draw health bar
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(-10, -14, 20, 3);
+        ctx.fillRect(-20, -28, 40, 6);
         ctx.fillStyle = '#ff4444';
-        ctx.fillRect(-10, -14, (this.health / this.maxHealth) * 20, 3);
+        ctx.fillRect(-20, -28, (this.health / this.maxHealth) * 40, 6);
         
         ctx.restore();
     }
@@ -366,9 +366,9 @@ class Arrow {
     
     getLength() {
         switch (this.type) {
-            case 'heavy': return 10;
-            case 'split': return 8;
-            default: return 8;
+            case 'heavy': return 20;
+            case 'split': return 16;
+            default: return 16;
         }
     }
     
@@ -387,7 +387,7 @@ class Arrow {
         
         // Store trail
         this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 4) {
+        if (this.trail.length > 8) {
             this.trail.shift();
         }
         
@@ -486,27 +486,27 @@ class Arrow {
     
     createImpactEffect() {
         // Create particles
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 8; i++) {
             const particle = new Particle(
                 this.x, this.y,
-                (Math.random() - 0.5) * 3,
-                (Math.random() - 0.5) * 3,
+                (Math.random() - 0.5) * 6,
+                (Math.random() - 0.5) * 6,
                 this.getParticleColor(),
-                15 + Math.random() * 10
+                30 + Math.random() * 20
             );
             gameState.particles.push(particle);
         }
         
         // Fire arrow creates fire particles
         if (this.type === 'fire') {
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 16; i++) {
                 const particle = new Particle(
-                    this.x + (Math.random() - 0.5) * 8,
-                    this.y + (Math.random() - 0.5) * 8,
-                    (Math.random() - 0.5) * 2,
-                    -Math.random() * 1.5,
+                    this.x + (Math.random() - 0.5) * 16,
+                    this.y + (Math.random() - 0.5) * 16,
+                    (Math.random() - 0.5) * 4,
+                    -Math.random() * 3,
                     `hsl(${Math.random() * 60}, 100%, 50%)`,
-                    30 + Math.random() * 20
+                    60 + Math.random() * 40
                 );
                 gameState.particles.push(particle);
             }
@@ -533,7 +533,7 @@ class Arrow {
             const alpha = i / this.trail.length * 0.5;
             ctx.globalAlpha = alpha;
             ctx.fillStyle = this.getArrowColor();
-            ctx.fillRect(this.trail[i].x - 0.5, this.trail[i].y - 0.5, 1, 1);
+            ctx.fillRect(this.trail[i].x - 1, this.trail[i].y - 1, 2, 2);
         }
         
         ctx.globalAlpha = 1;
@@ -542,27 +542,27 @@ class Arrow {
         
         // Draw arrow shaft
         ctx.fillStyle = this.getArrowColor();
-        ctx.fillRect(-this.length/2, -1, this.length, 2);
+        ctx.fillRect(-this.length/2, -2, this.length, 4);
         
         // Draw arrow head
         ctx.beginPath();
         ctx.moveTo(this.length/2, 0);
-        ctx.lineTo(this.length/2 - 3, -2);
-        ctx.lineTo(this.length/2 - 3, 2);
+        ctx.lineTo(this.length/2 - 6, -4);
+        ctx.lineTo(this.length/2 - 6, 4);
         ctx.closePath();
         ctx.fill();
         
         // Draw fletching
         ctx.fillStyle = '#654321';
-        ctx.fillRect(-this.length/2, -1.5, 2, 3);
+        ctx.fillRect(-this.length/2, -3, 4, 6);
         
         // Special effects
         if (this.type === 'fire') {
             // Fire trail
             ctx.shadowColor = '#ff6600';
-            ctx.shadowBlur = 5;
+            ctx.shadowBlur = 10;
             ctx.fillStyle = '#ff6600';
-            ctx.fillRect(-this.length/2, -0.5, this.length, 1);
+            ctx.fillRect(-this.length/2, -1, this.length, 2);
         }
         
         ctx.restore();
@@ -603,7 +603,7 @@ class Particle {
         const alpha = this.life / this.maxLife;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = this.color;
-        ctx.fillRect(this.x - 1, this.y - 1, 2, 2);
+        ctx.fillRect(this.x - 2, this.y - 2, 4, 4);
         ctx.globalAlpha = 1;
     }
     
@@ -617,7 +617,7 @@ function init() {
     initAudio();
     
     // Create player
-    gameState.player = new Player(40, canvas.height / 2);
+    gameState.player = new Player(80, canvas.height / 2);
     
     // Create initial enemies
     for (let i = 0; i < 2; i++) {
@@ -644,8 +644,8 @@ function init() {
 
 function spawnEnemy() {
     const side = Math.random() < 0.5 ? 'left' : 'right';
-    const x = side === 'left' ? canvas.width - 40 : canvas.width - 80 - Math.random() * 120;
-    const y = 40 + Math.random() * (canvas.height - 80);
+    const x = side === 'left' ? canvas.width - 80 : canvas.width - 160 - Math.random() * 240;
+    const y = 80 + Math.random() * (canvas.height - 160);
     
     gameState.enemies.push(new Enemy(x, y));
 }
@@ -738,12 +738,12 @@ function draw() {
     
     // Draw ground
     ctx.fillStyle = '#228B22';
-    ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+    ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
     
     // Draw wind indicator
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = '8px Arial';
-    ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 60, 15);
+    ctx.font = '16px Arial';
+    ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 120, 30);
     
     // Draw game objects
     gameState.particles.forEach(particle => particle.draw());
@@ -754,7 +754,7 @@ function draw() {
 
 function restartGame() {
     gameState = {
-        player: new Player(40, canvas.height / 2),
+        player: new Player(80, canvas.height / 2),
         enemies: [],
         arrows: [],
         particles: [],
