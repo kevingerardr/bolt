@@ -3,10 +3,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // Game constants
-const GRAVITY = 0.3;
-const WIND_STRENGTH = 0.1;
-const MAX_POWER = 100;
-const ARROW_SPEED_MULTIPLIER = 0.15;
+const GRAVITY = 0.15;
+const WIND_STRENGTH = 0.05;
+const MAX_POWER = 50;
+const ARROW_SPEED_MULTIPLIER = 0.08;
 
 // Game state
 let gameState = {
@@ -85,12 +85,12 @@ class Player {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.width = 40;
-        this.height = 60;
+        this.width = 16;
+        this.height = 24;
         this.health = 100;
         this.maxHealth = 100;
         this.angle = 0;
-        this.bowLength = 50;
+        this.bowLength = 20;
     }
     
     update() {
@@ -110,11 +110,11 @@ class Player {
         
         // Draw bow
         ctx.strokeStyle = '#8B4513';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         
-        const bowX = Math.cos(this.angle) * 20;
-        const bowY = Math.sin(this.angle) * 20;
+        const bowX = Math.cos(this.angle) * 8;
+        const bowY = Math.sin(this.angle) * 8;
         
         ctx.moveTo(bowX, bowY);
         ctx.lineTo(bowX + Math.cos(this.angle) * this.bowLength, bowY + Math.sin(this.angle) * this.bowLength);
@@ -123,15 +123,15 @@ class Player {
         // Draw bow string
         if (gameState.isCharging) {
             ctx.strokeStyle = '#654321';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1;
             ctx.beginPath();
             
-            const stringOffset = gameState.chargePower * 0.3;
+            const stringOffset = gameState.chargePower * 0.15;
             const perpAngle = this.angle + Math.PI / 2;
             
-            ctx.moveTo(bowX + Math.cos(perpAngle) * 15, bowY + Math.sin(perpAngle) * 15);
+            ctx.moveTo(bowX + Math.cos(perpAngle) * 6, bowY + Math.sin(perpAngle) * 6);
             ctx.lineTo(bowX - Math.cos(this.angle) * stringOffset, bowY - Math.sin(this.angle) * stringOffset);
-            ctx.lineTo(bowX - Math.cos(perpAngle) * 15, bowY - Math.sin(perpAngle) * 15);
+            ctx.lineTo(bowX - Math.cos(perpAngle) * 6, bowY - Math.sin(perpAngle) * 6);
             ctx.stroke();
         }
         
@@ -150,8 +150,8 @@ class Player {
         const vy = Math.sin(this.angle) * velocity;
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
         ctx.beginPath();
         
         let x = this.x;
@@ -161,7 +161,7 @@ class Player {
         
         ctx.moveTo(x, y);
         
-        for (let i = 0; i < 100; i++) {
+        for (let i = 0; i < 50; i++) {
             velY += GRAVITY;
             velX += gameState.wind * WIND_STRENGTH;
             x += velX;
@@ -169,7 +169,7 @@ class Player {
             
             if (x < 0 || x > canvas.width || y > canvas.height) break;
             
-            if (i % 5 === 0) {
+            if (i % 3 === 0) {
                 ctx.lineTo(x, y);
             }
         }
@@ -190,7 +190,7 @@ class Player {
     }
     
     shoot() {
-        if (gameState.chargePower < 10) return;
+        if (gameState.chargePower < 5) return;
         
         const arrowType = gameState.selectedArrowType;
         
@@ -211,8 +211,8 @@ class Player {
         const vy = Math.sin(this.angle) * velocity;
         
         const arrow = new Arrow(
-            this.x + Math.cos(this.angle) * 30,
-            this.y + Math.sin(this.angle) * 30,
+            this.x + Math.cos(this.angle) * 12,
+            this.y + Math.sin(this.angle) * 12,
             vx, vy, arrowType
         );
         
@@ -230,17 +230,17 @@ class Enemy {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.width = 35;
-        this.height = 55;
+        this.width = 14;
+        this.height = 22;
         this.health = 50;
         this.maxHealth = 50;
         this.angle = 0;
-        this.bowLength = 40;
+        this.bowLength = 16;
         this.shootTimer = 0;
-        this.shootCooldown = 120 + Math.random() * 120; // 2-4 seconds at 60fps
+        this.shootCooldown = 60 + Math.random() * 60; // 1-2 seconds at 60fps
         this.moveTimer = 0;
         this.moveDirection = Math.random() * Math.PI * 2;
-        this.speed = 0.5 + Math.random() * 0.5;
+        this.speed = 0.3 + Math.random() * 0.3;
         this.chargePower = 0;
         this.isCharging = false;
     }
@@ -248,7 +248,7 @@ class Enemy {
     update() {
         // AI movement
         this.moveTimer++;
-        if (this.moveTimer > 180) { // Change direction every 3 seconds
+        if (this.moveTimer > 90) { // Change direction every 1.5 seconds
             this.moveDirection = Math.random() * Math.PI * 2;
             this.moveTimer = 0;
         }
@@ -257,10 +257,10 @@ class Enemy {
         const newX = this.x + Math.cos(this.moveDirection) * this.speed;
         const newY = this.y + Math.sin(this.moveDirection) * this.speed;
         
-        if (newX > 50 && newX < canvas.width - 50) {
+        if (newX > 20 && newX < canvas.width - 20) {
             this.x = newX;
         }
-        if (newY > 50 && newY < canvas.height - 50) {
+        if (newY > 20 && newY < canvas.height - 20) {
             this.y = newY;
         }
         
@@ -276,8 +276,8 @@ class Enemy {
         }
         
         if (this.isCharging) {
-            this.chargePower += 2;
-            if (this.chargePower >= 60 + Math.random() * 40) {
+            this.chargePower += 1;
+            if (this.chargePower >= 30 + Math.random() * 20) {
                 this.shoot();
             }
         }
@@ -295,8 +295,8 @@ class Enemy {
         const vy = Math.sin(this.angle) * velocity;
         
         const arrow = new Arrow(
-            this.x + Math.cos(this.angle) * 25,
-            this.y + Math.sin(this.angle) * 25,
+            this.x + Math.cos(this.angle) * 10,
+            this.y + Math.sin(this.angle) * 10,
             vx, vy, 'enemy'
         );
         
@@ -305,7 +305,7 @@ class Enemy {
         this.chargePower = 0;
         this.isCharging = false;
         this.shootTimer = 0;
-        this.shootCooldown = 120 + Math.random() * 120;
+        this.shootCooldown = 60 + Math.random() * 60;
     }
     
     draw() {
@@ -318,11 +318,11 @@ class Enemy {
         
         // Draw bow
         ctx.strokeStyle = '#8B4513';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         
-        const bowX = Math.cos(this.angle) * 15;
-        const bowY = Math.sin(this.angle) * 15;
+        const bowX = Math.cos(this.angle) * 6;
+        const bowY = Math.sin(this.angle) * 6;
         
         ctx.moveTo(bowX, bowY);
         ctx.lineTo(bowX + Math.cos(this.angle) * this.bowLength, bowY + Math.sin(this.angle) * this.bowLength);
@@ -330,9 +330,9 @@ class Enemy {
         
         // Draw health bar
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(-25, -35, 50, 8);
+        ctx.fillRect(-10, -14, 20, 3);
         ctx.fillStyle = '#ff4444';
-        ctx.fillRect(-25, -35, (this.health / this.maxHealth) * 50, 8);
+        ctx.fillRect(-10, -14, (this.health / this.maxHealth) * 20, 3);
         
         ctx.restore();
     }
@@ -366,9 +366,9 @@ class Arrow {
     
     getLength() {
         switch (this.type) {
-            case 'heavy': return 25;
-            case 'split': return 20;
-            default: return 20;
+            case 'heavy': return 10;
+            case 'split': return 8;
+            default: return 8;
         }
     }
     
@@ -387,7 +387,7 @@ class Arrow {
         
         // Store trail
         this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 8) {
+        if (this.trail.length > 4) {
             this.trail.shift();
         }
         
@@ -408,7 +408,7 @@ class Arrow {
         // Split arrow logic
         if (this.type === 'split' && !this.hasSplit) {
             this.splitTimer++;
-            if (this.splitTimer > 30) { // Split after 0.5 seconds
+            if (this.splitTimer > 15) { // Split after 0.25 seconds
                 this.split();
             }
         }
@@ -475,7 +475,7 @@ class Arrow {
                         // Spawn new enemy
                         setTimeout(() => {
                             spawnEnemy();
-                        }, 2000);
+                        }, 1000);
                     }
                     
                     break;
@@ -486,27 +486,27 @@ class Arrow {
     
     createImpactEffect() {
         // Create particles
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 4; i++) {
             const particle = new Particle(
                 this.x, this.y,
-                (Math.random() - 0.5) * 6,
-                (Math.random() - 0.5) * 6,
+                (Math.random() - 0.5) * 3,
+                (Math.random() - 0.5) * 3,
                 this.getParticleColor(),
-                30 + Math.random() * 20
+                15 + Math.random() * 10
             );
             gameState.particles.push(particle);
         }
         
         // Fire arrow creates fire particles
         if (this.type === 'fire') {
-            for (let i = 0; i < 15; i++) {
+            for (let i = 0; i < 8; i++) {
                 const particle = new Particle(
-                    this.x + (Math.random() - 0.5) * 20,
-                    this.y + (Math.random() - 0.5) * 20,
-                    (Math.random() - 0.5) * 4,
-                    -Math.random() * 3,
+                    this.x + (Math.random() - 0.5) * 8,
+                    this.y + (Math.random() - 0.5) * 8,
+                    (Math.random() - 0.5) * 2,
+                    -Math.random() * 1.5,
                     `hsl(${Math.random() * 60}, 100%, 50%)`,
-                    60 + Math.random() * 40
+                    30 + Math.random() * 20
                 );
                 gameState.particles.push(particle);
             }
@@ -533,7 +533,7 @@ class Arrow {
             const alpha = i / this.trail.length * 0.5;
             ctx.globalAlpha = alpha;
             ctx.fillStyle = this.getArrowColor();
-            ctx.fillRect(this.trail[i].x - 1, this.trail[i].y - 1, 2, 2);
+            ctx.fillRect(this.trail[i].x - 0.5, this.trail[i].y - 0.5, 1, 1);
         }
         
         ctx.globalAlpha = 1;
@@ -542,27 +542,27 @@ class Arrow {
         
         // Draw arrow shaft
         ctx.fillStyle = this.getArrowColor();
-        ctx.fillRect(-this.length/2, -2, this.length, 4);
+        ctx.fillRect(-this.length/2, -1, this.length, 2);
         
         // Draw arrow head
         ctx.beginPath();
         ctx.moveTo(this.length/2, 0);
-        ctx.lineTo(this.length/2 - 8, -4);
-        ctx.lineTo(this.length/2 - 8, 4);
+        ctx.lineTo(this.length/2 - 3, -2);
+        ctx.lineTo(this.length/2 - 3, 2);
         ctx.closePath();
         ctx.fill();
         
         // Draw fletching
         ctx.fillStyle = '#654321';
-        ctx.fillRect(-this.length/2, -3, 6, 6);
+        ctx.fillRect(-this.length/2, -1.5, 2, 3);
         
         // Special effects
         if (this.type === 'fire') {
             // Fire trail
             ctx.shadowColor = '#ff6600';
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 5;
             ctx.fillStyle = '#ff6600';
-            ctx.fillRect(-this.length/2, -1, this.length, 2);
+            ctx.fillRect(-this.length/2, -0.5, this.length, 1);
         }
         
         ctx.restore();
@@ -594,7 +594,7 @@ class Particle {
     update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.1; // Gravity
+        this.vy += 0.05; // Gravity
         this.vx *= 0.98; // Air resistance
         this.life--;
     }
@@ -603,7 +603,7 @@ class Particle {
         const alpha = this.life / this.maxLife;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = this.color;
-        ctx.fillRect(this.x - 2, this.y - 2, 4, 4);
+        ctx.fillRect(this.x - 1, this.y - 1, 2, 2);
         ctx.globalAlpha = 1;
     }
     
@@ -617,10 +617,10 @@ function init() {
     initAudio();
     
     // Create player
-    gameState.player = new Player(100, canvas.height / 2);
+    gameState.player = new Player(40, canvas.height / 2);
     
     // Create initial enemies
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
         spawnEnemy();
     }
     
@@ -644,8 +644,8 @@ function init() {
 
 function spawnEnemy() {
     const side = Math.random() < 0.5 ? 'left' : 'right';
-    const x = side === 'left' ? canvas.width - 100 : canvas.width - 200 - Math.random() * 400;
-    const y = 100 + Math.random() * (canvas.height - 200);
+    const x = side === 'left' ? canvas.width - 40 : canvas.width - 80 - Math.random() * 120;
+    const y = 40 + Math.random() * (canvas.height - 80);
     
     gameState.enemies.push(new Enemy(x, y));
 }
@@ -705,7 +705,7 @@ function gameLoop() {
 function update() {
     // Update charging
     if (gameState.isCharging) {
-        gameState.chargePower = Math.min(gameState.chargePower + 2, MAX_POWER);
+        gameState.chargePower = Math.min(gameState.chargePower + 1, MAX_POWER);
         updatePowerMeter();
     }
     
@@ -738,12 +738,12 @@ function draw() {
     
     // Draw ground
     ctx.fillStyle = '#228B22';
-    ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+    ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
     
     // Draw wind indicator
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = '16px Arial';
-    ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 150, 30);
+    ctx.font = '8px Arial';
+    ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 60, 15);
     
     // Draw game objects
     gameState.particles.forEach(particle => particle.draw());
@@ -754,7 +754,7 @@ function draw() {
 
 function restartGame() {
     gameState = {
-        player: new Player(100, canvas.height / 2),
+        player: new Player(40, canvas.height / 2),
         enemies: [],
         arrows: [],
         particles: [],
@@ -773,7 +773,7 @@ function restartGame() {
     };
     
     // Spawn initial enemies
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
         spawnEnemy();
     }
     
