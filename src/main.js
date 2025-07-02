@@ -6,7 +6,7 @@ const ctx = canvas.getContext('2d');
 const GRAVITY = 0.15;
 const WIND_STRENGTH = 0.05;
 const MAX_POWER = 50;
-const ARROW_SPEED_MULTIPLIER = 0.08;
+const ARROW_SPEED_MULTIPLIER = 0.15; // Increased from 0.08 to 0.15
 
 // Game state
 let gameState = {
@@ -126,7 +126,7 @@ class Player {
             ctx.lineWidth = 2;
             ctx.beginPath();
             
-            const stringOffset = gameState.chargePower * 0.3;
+            const stringOffset = gameState.chargePower * 0.4; // Increased string pull visual
             const perpAngle = this.angle + Math.PI / 2;
             
             ctx.moveTo(bowX + Math.cos(perpAngle) * 12, bowY + Math.sin(perpAngle) * 12);
@@ -161,7 +161,7 @@ class Player {
         
         ctx.moveTo(x, y);
         
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 60; i++) { // Increased prediction length
             velY += GRAVITY;
             velX += gameState.wind * WIND_STRENGTH;
             x += velX;
@@ -190,7 +190,7 @@ class Player {
     }
     
     shoot() {
-        if (gameState.chargePower < 5) return;
+        if (gameState.chargePower < 3) return; // Reduced minimum power requirement
         
         const arrowType = gameState.selectedArrowType;
         
@@ -276,8 +276,8 @@ class Enemy {
         }
         
         if (this.isCharging) {
-            this.chargePower += 1;
-            if (this.chargePower >= 30 + Math.random() * 20) {
+            this.chargePower += 1.2; // Slightly faster charging for enemies
+            if (this.chargePower >= 25 + Math.random() * 15) { // Reduced charge time
                 this.shoot();
             }
         }
@@ -290,7 +290,7 @@ class Enemy {
     
     shoot() {
         const power = this.chargePower;
-        const velocity = power * ARROW_SPEED_MULTIPLIER * 0.8; // Enemies shoot slightly weaker
+        const velocity = power * ARROW_SPEED_MULTIPLIER * 0.9; // Increased from 0.8 to 0.9
         const vx = Math.cos(this.angle) * velocity;
         const vy = Math.sin(this.angle) * velocity;
         
@@ -366,19 +366,19 @@ class Arrow {
     
     getLength() {
         switch (this.type) {
-            case 'heavy': return 20;
-            case 'split': return 16;
-            default: return 16;
+            case 'heavy': return 24; // Increased from 20
+            case 'split': return 18; // Increased from 16
+            default: return 18; // Increased from 16
         }
     }
     
     getDamage() {
         switch (this.type) {
-            case 'fire': return 25;
-            case 'heavy': return 35;
-            case 'split': return 15;
-            case 'enemy': return 20;
-            default: return 20;
+            case 'fire': return 30; // Increased from 25
+            case 'heavy': return 45; // Increased from 35
+            case 'split': return 20; // Increased from 15
+            case 'enemy': return 25; // Increased from 20
+            default: return 25; // Increased from 20
         }
     }
     
@@ -387,7 +387,7 @@ class Arrow {
         
         // Store trail
         this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 8) {
+        if (this.trail.length > 12) { // Longer trail for more visual impact
             this.trail.shift();
         }
         
@@ -395,7 +395,7 @@ class Arrow {
         this.vy += GRAVITY;
         
         // Apply wind (less effect on heavy arrows)
-        const windEffect = this.type === 'heavy' ? 0.5 : 1;
+        const windEffect = this.type === 'heavy' ? 0.3 : 1; // Reduced wind effect on heavy arrows
         this.vx += gameState.wind * WIND_STRENGTH * windEffect;
         
         // Update position
@@ -408,7 +408,7 @@ class Arrow {
         // Split arrow logic
         if (this.type === 'split' && !this.hasSplit) {
             this.splitTimer++;
-            if (this.splitTimer > 15) { // Split after 0.25 seconds
+            if (this.splitTimer > 12) { // Split earlier for more impact
                 this.split();
             }
         }
@@ -426,11 +426,11 @@ class Arrow {
         this.hasSplit = true;
         
         // Create two additional arrows
-        const spreadAngle = 0.3;
+        const spreadAngle = 0.4; // Increased spread angle
         
         for (let i = 0; i < 2; i++) {
             const newAngle = this.angle + (i === 0 ? -spreadAngle : spreadAngle);
-            const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 0.8;
+            const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 0.9; // Increased from 0.8
             
             const newArrow = new Arrow(
                 this.x, this.y,
@@ -486,27 +486,27 @@ class Arrow {
     
     createImpactEffect() {
         // Create particles
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 12; i++) { // More particles
             const particle = new Particle(
                 this.x, this.y,
-                (Math.random() - 0.5) * 6,
-                (Math.random() - 0.5) * 6,
+                (Math.random() - 0.5) * 8, // Increased particle velocity
+                (Math.random() - 0.5) * 8,
                 this.getParticleColor(),
-                30 + Math.random() * 20
+                40 + Math.random() * 30 // Longer lasting particles
             );
             gameState.particles.push(particle);
         }
         
         // Fire arrow creates fire particles
         if (this.type === 'fire') {
-            for (let i = 0; i < 16; i++) {
+            for (let i = 0; i < 20; i++) { // More fire particles
                 const particle = new Particle(
-                    this.x + (Math.random() - 0.5) * 16,
-                    this.y + (Math.random() - 0.5) * 16,
-                    (Math.random() - 0.5) * 4,
-                    -Math.random() * 3,
+                    this.x + (Math.random() - 0.5) * 20,
+                    this.y + (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 6,
+                    -Math.random() * 4,
                     `hsl(${Math.random() * 60}, 100%, 50%)`,
-                    60 + Math.random() * 40
+                    80 + Math.random() * 60
                 );
                 gameState.particles.push(particle);
             }
@@ -530,10 +530,11 @@ class Arrow {
         
         // Draw trail
         for (let i = 0; i < this.trail.length; i++) {
-            const alpha = i / this.trail.length * 0.5;
+            const alpha = i / this.trail.length * 0.7; // More visible trail
             ctx.globalAlpha = alpha;
             ctx.fillStyle = this.getArrowColor();
-            ctx.fillRect(this.trail[i].x - 1, this.trail[i].y - 1, 2, 2);
+            const size = 2 + (i / this.trail.length) * 2; // Varying trail size
+            ctx.fillRect(this.trail[i].x - size/2, this.trail[i].y - size/2, size, size);
         }
         
         ctx.globalAlpha = 1;
@@ -547,22 +548,22 @@ class Arrow {
         // Draw arrow head
         ctx.beginPath();
         ctx.moveTo(this.length/2, 0);
-        ctx.lineTo(this.length/2 - 6, -4);
-        ctx.lineTo(this.length/2 - 6, 4);
+        ctx.lineTo(this.length/2 - 8, -5); // Larger arrowhead
+        ctx.lineTo(this.length/2 - 8, 5);
         ctx.closePath();
         ctx.fill();
         
         // Draw fletching
         ctx.fillStyle = '#654321';
-        ctx.fillRect(-this.length/2, -3, 4, 6);
+        ctx.fillRect(-this.length/2, -4, 6, 8); // Larger fletching
         
         // Special effects
         if (this.type === 'fire') {
             // Fire trail
             ctx.shadowColor = '#ff6600';
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 15; // Increased glow
             ctx.fillStyle = '#ff6600';
-            ctx.fillRect(-this.length/2, -1, this.length, 2);
+            ctx.fillRect(-this.length/2, -2, this.length, 4);
         }
         
         ctx.restore();
@@ -705,7 +706,7 @@ function gameLoop() {
 function update() {
     // Update charging
     if (gameState.isCharging) {
-        gameState.chargePower = Math.min(gameState.chargePower + 1, MAX_POWER);
+        gameState.chargePower = Math.min(gameState.chargePower + 1.5, MAX_POWER); // Faster charging
         updatePowerMeter();
     }
     
