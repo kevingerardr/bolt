@@ -3,10 +3,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // Game constants
-const GRAVITY = 0.15;
+const GRAVITY = 0.08; // Reduced gravity for longer travel
 const WIND_STRENGTH = 0.05;
 const MAX_POWER = 50;
-const ARROW_SPEED_MULTIPLIER = 0.15; // Increased from 0.08 to 0.15
+const ARROW_SPEED_MULTIPLIER = 0.2; // Increased for longer travel
 
 // Game state
 let gameState = {
@@ -25,7 +25,8 @@ let gameState = {
         fire: 10,
         heavy: 5,
         split: 3
-    }
+    },
+    keys: {} // Track pressed keys
 };
 
 // Audio context for sound effects
@@ -126,7 +127,7 @@ class Player {
             ctx.lineWidth = 2;
             ctx.beginPath();
             
-            const stringOffset = gameState.chargePower * 0.4; // Increased string pull visual
+            const stringOffset = gameState.chargePower * 0.4;
             const perpAngle = this.angle + Math.PI / 2;
             
             ctx.moveTo(bowX + Math.cos(perpAngle) * 12, bowY + Math.sin(perpAngle) * 12);
@@ -161,7 +162,7 @@ class Player {
         
         ctx.moveTo(x, y);
         
-        for (let i = 0; i < 60; i++) { // Increased prediction length
+        for (let i = 0; i < 80; i++) { // Increased prediction length
             velY += GRAVITY;
             velX += gameState.wind * WIND_STRENGTH;
             x += velX;
@@ -190,7 +191,7 @@ class Player {
     }
     
     shoot() {
-        if (gameState.chargePower < 3) return; // Reduced minimum power requirement
+        if (gameState.chargePower < 3) return;
         
         const arrowType = gameState.selectedArrowType;
         
@@ -276,8 +277,8 @@ class Enemy {
         }
         
         if (this.isCharging) {
-            this.chargePower += 1.2; // Slightly faster charging for enemies
-            if (this.chargePower >= 25 + Math.random() * 15) { // Reduced charge time
+            this.chargePower += 1.2;
+            if (this.chargePower >= 25 + Math.random() * 15) {
                 this.shoot();
             }
         }
@@ -290,7 +291,7 @@ class Enemy {
     
     shoot() {
         const power = this.chargePower;
-        const velocity = power * ARROW_SPEED_MULTIPLIER * 0.9; // Increased from 0.8 to 0.9
+        const velocity = power * ARROW_SPEED_MULTIPLIER * 0.9;
         const vx = Math.cos(this.angle) * velocity;
         const vy = Math.sin(this.angle) * velocity;
         
@@ -362,23 +363,24 @@ class Arrow {
         this.active = true;
         this.splitTimer = 0;
         this.hasSplit = false;
+        this.bounceCount = 0; // For ground bouncing
     }
     
     getLength() {
         switch (this.type) {
-            case 'heavy': return 24; // Increased from 20
-            case 'split': return 18; // Increased from 16
-            default: return 18; // Increased from 16
+            case 'heavy': return 24;
+            case 'split': return 18;
+            default: return 18;
         }
     }
     
     getDamage() {
         switch (this.type) {
-            case 'fire': return 30; // Increased from 25
-            case 'heavy': return 45; // Increased from 35
-            case 'split': return 20; // Increased from 15
-            case 'enemy': return 25; // Increased from 20
-            default: return 25; // Increased from 20
+            case 'fire': return 30;
+            case 'heavy': return 45;
+            case 'split': return 20;
+            case 'enemy': return 25;
+            default: return 25;
         }
     }
     
@@ -387,7 +389,7 @@ class Arrow {
         
         // Store trail
         this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 12) { // Longer trail for more visual impact
+        if (this.trail.length > 12) {
             this.trail.shift();
         }
         
@@ -395,7 +397,7 @@ class Arrow {
         this.vy += GRAVITY;
         
         // Apply wind (less effect on heavy arrows)
-        const windEffect = this.type === 'heavy' ? 0.3 : 1; // Reduced wind effect on heavy arrows
+        const windEffect = this.type === 'heavy' ? 0.3 : 1;
         this.vx += gameState.wind * WIND_STRENGTH * windEffect;
         
         // Update position
@@ -405,16 +407,23 @@ class Arrow {
         // Update angle
         this.angle = Math.atan2(this.vy, this.vx);
         
-        // Split arrow logic
+        // Split arrow logic - Fixed to work properly
         if (this.type === 'split' && !this.hasSplit) {
             this.splitTimer++;
-            if (this.splitTimer > 12) { // Split earlier for more impact
+            if (this.splitTimer > 20) { // Split after a bit of travel
                 this.split();
             }
         }
         
-        // Check bounds
-        if (this.x < 0 || this.x > canvas.width || this.y > canvas.height) {
+        // Ground bounce for arrows (optional - makes them travel further)
+        if (this.y > canvas.height - 40 && this.vy > 0 && this.bounceCount < 2) {
+            this.vy = -this.vy * 0.6; // Bounce with energy loss
+            this.y = canvas.height - 40;
+            this.bounceCount++;
+        }
+        
+        // Check bounds - arrows now travel much further
+        if (this.x < -100 || this.x > canvas.width + 100 || this.y > canvas.height + 100) {
             this.active = false;
         }
         
@@ -423,25 +432,35 @@ class Arrow {
     }
     
     split() {
+        if (this.hasSplit) return; // Prevent multiple splits
+        
         this.hasSplit = true;
         
-        // Create two additional arrows
-        const spreadAngle = 0.4; // Increased spread angle
+        // Create two additional arrows with proper spread
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        const spreadAngle = 0.5; // Wider spread
         
-        for (let i = 0; i < 2; i++) {
-            const newAngle = this.angle + (i === 0 ? -spreadAngle : spreadAngle);
-            const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy) * 0.9; // Increased from 0.8
-            
-            const newArrow = new Arrow(
-                this.x, this.y,
-                Math.cos(newAngle) * speed,
-                Math.sin(newAngle) * speed,
-                'split'
-            );
-            newArrow.hasSplit = true; // Prevent infinite splitting
-            
-            gameState.arrows.push(newArrow);
-        }
+        // Left arrow
+        const leftAngle = this.angle - spreadAngle;
+        const leftArrow = new Arrow(
+            this.x, this.y,
+            Math.cos(leftAngle) * currentSpeed * 0.9,
+            Math.sin(leftAngle) * currentSpeed * 0.9,
+            'split'
+        );
+        leftArrow.hasSplit = true; // Prevent infinite splitting
+        
+        // Right arrow
+        const rightAngle = this.angle + spreadAngle;
+        const rightArrow = new Arrow(
+            this.x, this.y,
+            Math.cos(rightAngle) * currentSpeed * 0.9,
+            Math.sin(rightAngle) * currentSpeed * 0.9,
+            'split'
+        );
+        rightArrow.hasSplit = true; // Prevent infinite splitting
+        
+        gameState.arrows.push(leftArrow, rightArrow);
     }
     
     checkCollisions() {
@@ -486,20 +505,20 @@ class Arrow {
     
     createImpactEffect() {
         // Create particles
-        for (let i = 0; i < 12; i++) { // More particles
+        for (let i = 0; i < 12; i++) {
             const particle = new Particle(
                 this.x, this.y,
-                (Math.random() - 0.5) * 8, // Increased particle velocity
+                (Math.random() - 0.5) * 8,
                 (Math.random() - 0.5) * 8,
                 this.getParticleColor(),
-                40 + Math.random() * 30 // Longer lasting particles
+                40 + Math.random() * 30
             );
             gameState.particles.push(particle);
         }
         
         // Fire arrow creates fire particles
         if (this.type === 'fire') {
-            for (let i = 0; i < 20; i++) { // More fire particles
+            for (let i = 0; i < 20; i++) {
                 const particle = new Particle(
                     this.x + (Math.random() - 0.5) * 20,
                     this.y + (Math.random() - 0.5) * 20,
@@ -530,10 +549,10 @@ class Arrow {
         
         // Draw trail
         for (let i = 0; i < this.trail.length; i++) {
-            const alpha = i / this.trail.length * 0.7; // More visible trail
+            const alpha = i / this.trail.length * 0.7;
             ctx.globalAlpha = alpha;
             ctx.fillStyle = this.getArrowColor();
-            const size = 2 + (i / this.trail.length) * 2; // Varying trail size
+            const size = 2 + (i / this.trail.length) * 2;
             ctx.fillRect(this.trail[i].x - size/2, this.trail[i].y - size/2, size, size);
         }
         
@@ -548,20 +567,20 @@ class Arrow {
         // Draw arrow head
         ctx.beginPath();
         ctx.moveTo(this.length/2, 0);
-        ctx.lineTo(this.length/2 - 8, -5); // Larger arrowhead
+        ctx.lineTo(this.length/2 - 8, -5);
         ctx.lineTo(this.length/2 - 8, 5);
         ctx.closePath();
         ctx.fill();
         
         // Draw fletching
         ctx.fillStyle = '#654321';
-        ctx.fillRect(-this.length/2, -4, 6, 8); // Larger fletching
+        ctx.fillRect(-this.length/2, -4, 6, 8);
         
         // Special effects
         if (this.type === 'fire') {
             // Fire trail
             ctx.shadowColor = '#ff6600';
-            ctx.shadowBlur = 15; // Increased glow
+            ctx.shadowBlur = 15;
             ctx.fillStyle = '#ff6600';
             ctx.fillRect(-this.length/2, -2, this.length, 4);
         }
@@ -613,6 +632,20 @@ class Particle {
     }
 }
 
+// Arrow selection functions
+function selectArrowType(type) {
+    // Check if we have ammo for this arrow type
+    if (type !== 'regular' && gameState.arrowCounts[type] <= 0) {
+        return; // Can't select if no ammo
+    }
+    
+    gameState.selectedArrowType = type;
+    
+    // Update UI
+    document.querySelector('.arrow-type.selected').classList.remove('selected');
+    document.querySelector(`.arrow-type[data-type="${type}"]`).classList.add('selected');
+}
+
 // Game functions
 function init() {
     initAudio();
@@ -630,12 +663,14 @@ function init() {
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
     
+    // Keyboard event listeners
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    
     // Arrow type selection
     document.querySelectorAll('.arrow-type').forEach(element => {
         element.addEventListener('click', () => {
-            document.querySelector('.arrow-type.selected').classList.remove('selected');
-            element.classList.add('selected');
-            gameState.selectedArrowType = element.dataset.type;
+            selectArrowType(element.dataset.type);
         });
     });
     
@@ -675,6 +710,30 @@ function handleMouseUp(event) {
     }
 }
 
+function handleKeyDown(event) {
+    gameState.keys[event.key] = true;
+    
+    // Arrow selection with number keys
+    switch(event.key) {
+        case '1':
+            selectArrowType('regular');
+            break;
+        case '2':
+            selectArrowType('fire');
+            break;
+        case '3':
+            selectArrowType('heavy');
+            break;
+        case '4':
+            selectArrowType('split');
+            break;
+    }
+}
+
+function handleKeyUp(event) {
+    gameState.keys[event.key] = false;
+}
+
 function updatePowerMeter() {
     const powerFill = document.getElementById('powerFill');
     powerFill.style.width = (gameState.chargePower / MAX_POWER * 100) + '%';
@@ -706,7 +765,7 @@ function gameLoop() {
 function update() {
     // Update charging
     if (gameState.isCharging) {
-        gameState.chargePower = Math.min(gameState.chargePower + 1.5, MAX_POWER); // Faster charging
+        gameState.chargePower = Math.min(gameState.chargePower + 1.5, MAX_POWER);
         updatePowerMeter();
     }
     
@@ -746,6 +805,11 @@ function draw() {
     ctx.font = '16px Arial';
     ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 120, 30);
     
+    // Draw keyboard controls hint
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = '12px Arial';
+    ctx.fillText('Keys: 1-Regular 2-Fire 3-Heavy 4-Split', 10, canvas.height - 10);
+    
     // Draw game objects
     gameState.particles.forEach(particle => particle.draw());
     gameState.arrows.forEach(arrow => arrow.draw());
@@ -770,7 +834,8 @@ function restartGame() {
             fire: 10,
             heavy: 5,
             split: 3
-        }
+        },
+        keys: {}
     };
     
     // Spawn initial enemies
