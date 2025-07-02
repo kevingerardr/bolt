@@ -11,7 +11,7 @@ const ARROW_SPEED_MULTIPLIER = 0.2; // Increased for longer travel
 // Game state
 let gameState = {
     player: null,
-    enemies: [],
+    platforms: [], // Changed from enemies to platforms
     arrows: [],
     particles: [],
     score: 0,
@@ -226,123 +226,204 @@ class Player {
     }
 }
 
-// Enemy class
-class Enemy {
-    constructor(x, y) {
+// Platform class (replaces Enemy)
+class Platform {
+    constructor(x, y, type = 'basic') {
         this.x = x;
         this.y = y;
-        this.width = 28;
-        this.height = 44;
-        this.health = 50;
-        this.maxHealth = 50;
-        this.angle = 0;
-        this.bowLength = 32;
-        this.shootTimer = 0;
-        this.shootCooldown = 60 + Math.random() * 60; // 1-2 seconds at 60fps
-        this.moveTimer = 0;
-        this.moveDirection = Math.random() * Math.PI * 2;
-        this.speed = 0.6 + Math.random() * 0.6;
-        this.chargePower = 0;
-        this.isCharging = false;
+        this.type = type;
+        this.width = this.getWidth();
+        this.height = this.getHeight();
+        this.health = this.getMaxHealth();
+        this.maxHealth = this.getMaxHealth();
+        this.color = this.getColor();
+        this.points = this.getPoints();
+        this.destroyed = false;
+        
+        // Visual effects
+        this.hitFlash = 0;
+        this.particles = [];
+    }
+    
+    getWidth() {
+        switch (this.type) {
+            case 'small': return 40;
+            case 'large': return 80;
+            case 'moving': return 50;
+            default: return 60; // basic
+        }
+    }
+    
+    getHeight() {
+        switch (this.type) {
+            case 'small': return 30;
+            case 'large': return 60;
+            case 'moving': return 40;
+            default: return 40; // basic
+        }
+    }
+    
+    getMaxHealth() {
+        switch (this.type) {
+            case 'small': return 30;
+            case 'large': return 100;
+            case 'moving': return 60;
+            default: return 50; // basic
+        }
+    }
+    
+    getColor() {
+        switch (this.type) {
+            case 'small': return '#E74C3C';
+            case 'large': return '#8E44AD';
+            case 'moving': return '#F39C12';
+            default: return '#E67E22'; // basic
+        }
+    }
+    
+    getPoints() {
+        switch (this.type) {
+            case 'small': return 150;
+            case 'large': return 200;
+            case 'moving': return 300;
+            default: return 100; // basic
+        }
     }
     
     update() {
-        // AI movement
-        this.moveTimer++;
-        if (this.moveTimer > 90) { // Change direction every 1.5 seconds
-            this.moveDirection = Math.random() * Math.PI * 2;
-            this.moveTimer = 0;
+        // Moving platforms oscillate up and down
+        if (this.type === 'moving') {
+            this.y += Math.sin(Date.now() * 0.003) * 0.8;
         }
         
-        // Move within bounds
-        const newX = this.x + Math.cos(this.moveDirection) * this.speed;
-        const newY = this.y + Math.sin(this.moveDirection) * this.speed;
-        
-        if (newX > 40 && newX < canvas.width - 40) {
-            this.x = newX;
-        }
-        if (newY > 40 && newY < canvas.height - 40) {
-            this.y = newY;
+        // Update hit flash
+        if (this.hitFlash > 0) {
+            this.hitFlash--;
         }
         
-        // Aim at player
-        const dx = gameState.player.x - this.x;
-        const dy = gameState.player.y - this.y;
-        this.angle = Math.atan2(dy, dx);
-        
-        // Shooting AI
-        this.shootTimer++;
-        if (this.shootTimer > this.shootCooldown) {
-            this.startCharging();
-        }
-        
-        if (this.isCharging) {
-            this.chargePower += 1.2;
-            if (this.chargePower >= 25 + Math.random() * 15) {
-                this.shoot();
-            }
-        }
-    }
-    
-    startCharging() {
-        this.isCharging = true;
-        this.chargePower = 0;
-    }
-    
-    shoot() {
-        const power = this.chargePower;
-        const velocity = power * ARROW_SPEED_MULTIPLIER * 0.9;
-        const vx = Math.cos(this.angle) * velocity;
-        const vy = Math.sin(this.angle) * velocity;
-        
-        const arrow = new Arrow(
-            this.x + Math.cos(this.angle) * 20,
-            this.y + Math.sin(this.angle) * 20,
-            vx, vy, 'enemy'
-        );
-        
-        gameState.arrows.push(arrow);
-        
-        this.chargePower = 0;
-        this.isCharging = false;
-        this.shootTimer = 0;
-        this.shootCooldown = 60 + Math.random() * 60;
+        // Update particles
+        this.particles = this.particles.filter(particle => {
+            particle.update();
+            return !particle.isDead();
+        });
     }
     
     draw() {
+        if (this.destroyed) return;
+        
         ctx.save();
         ctx.translate(this.x, this.y);
         
-        // Draw enemy body
-        ctx.fillStyle = '#E74C3C';
+        // Flash effect when hit
+        if (this.hitFlash > 0) {
+            ctx.fillStyle = '#FFFFFF';
+        } else {
+            ctx.fillStyle = this.color;
+        }
+        
+        // Draw platform base
         ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
         
-        // Draw bow
-        ctx.strokeStyle = '#8B4513';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
+        // Draw platform details based on type
+        ctx.fillStyle = this.getDarkerColor();
         
-        const bowX = Math.cos(this.angle) * 12;
-        const bowY = Math.sin(this.angle) * 12;
-        
-        ctx.moveTo(bowX, bowY);
-        ctx.lineTo(bowX + Math.cos(this.angle) * this.bowLength, bowY + Math.sin(this.angle) * this.bowLength);
-        ctx.stroke();
+        if (this.type === 'small') {
+            // Simple target circle
+            ctx.beginPath();
+            ctx.arc(0, 0, 12, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (this.type === 'large') {
+            // Bullseye target
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = this.getDarkerColor();
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (this.type === 'moving') {
+            // Diamond shape
+            ctx.beginPath();
+            ctx.moveTo(0, -15);
+            ctx.lineTo(15, 0);
+            ctx.lineTo(0, 15);
+            ctx.lineTo(-15, 0);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            // Basic rectangular target
+            ctx.fillRect(-15, -10, 30, 20);
+        }
         
         // Draw health bar
+        const barWidth = this.width - 10;
+        const barHeight = 6;
+        const barY = -this.height/2 - 12;
+        
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(-20, -28, 40, 6);
-        ctx.fillStyle = '#ff4444';
-        ctx.fillRect(-20, -28, (this.health / this.maxHealth) * 40, 6);
+        ctx.fillRect(-barWidth/2, barY, barWidth, barHeight);
+        
+        const healthPercent = this.health / this.maxHealth;
+        ctx.fillStyle = healthPercent > 0.5 ? '#2ECC71' : healthPercent > 0.25 ? '#F39C12' : '#E74C3C';
+        ctx.fillRect(-barWidth/2, barY, barWidth * healthPercent, barHeight);
+        
+        // Draw particles
+        this.particles.forEach(particle => particle.draw());
         
         ctx.restore();
     }
     
+    getDarkerColor() {
+        switch (this.type) {
+            case 'small': return '#C0392B';
+            case 'large': return '#6C3483';
+            case 'moving': return '#D68910';
+            default: return '#D35400'; // basic
+        }
+    }
+    
     takeDamage(damage) {
         this.health -= damage;
+        this.hitFlash = 10;
+        
+        // Create hit particles
+        for (let i = 0; i < 5; i++) {
+            const particle = new Particle(
+                (Math.random() - 0.5) * this.width,
+                (Math.random() - 0.5) * this.height,
+                (Math.random() - 0.5) * 4,
+                (Math.random() - 0.5) * 4,
+                this.color,
+                20 + Math.random() * 20
+            );
+            this.particles.push(particle);
+        }
+        
         if (this.health <= 0) {
             this.health = 0;
-            return true; // Enemy is dead
+            this.destroyed = true;
+            
+            // Create destruction particles
+            for (let i = 0; i < 15; i++) {
+                const particle = new Particle(
+                    (Math.random() - 0.5) * this.width,
+                    (Math.random() - 0.5) * this.height,
+                    (Math.random() - 0.5) * 8,
+                    (Math.random() - 0.5) * 8,
+                    this.color,
+                    40 + Math.random() * 30
+                );
+                gameState.particles.push(particle);
+            }
+            
+            return true; // Platform is destroyed
         }
         return false;
     }
@@ -379,7 +460,6 @@ class Arrow {
             case 'fire': return 30;
             case 'heavy': return 45;
             case 'split': return 20;
-            case 'enemy': return 25;
             default: return 25;
         }
     }
@@ -464,41 +544,33 @@ class Arrow {
     }
     
     checkCollisions() {
-        // Check collision with player (if enemy arrow)
-        if (this.type === 'enemy') {
-            const player = gameState.player;
-            if (this.x > player.x - player.width/2 && this.x < player.x + player.width/2 &&
-                this.y > player.y - player.height/2 && this.y < player.y + player.height/2) {
-                player.takeDamage(this.damage);
+        // Check collision with platforms
+        for (let i = gameState.platforms.length - 1; i >= 0; i--) {
+            const platform = gameState.platforms[i];
+            if (platform.destroyed) continue;
+            
+            if (this.x > platform.x - platform.width/2 && this.x < platform.x + platform.width/2 &&
+                this.y > platform.y - platform.height/2 && this.y < platform.y + platform.height/2) {
+                
+                const isDestroyed = platform.takeDamage(this.damage);
                 this.createImpactEffect();
                 this.active = false;
                 playSound('hit');
-            }
-        } else {
-            // Check collision with enemies (if player arrow)
-            for (let i = gameState.enemies.length - 1; i >= 0; i--) {
-                const enemy = gameState.enemies[i];
-                if (this.x > enemy.x - enemy.width/2 && this.x < enemy.x + enemy.width/2 &&
-                    this.y > enemy.y - enemy.height/2 && this.y < enemy.y + enemy.height/2) {
+                
+                if (isDestroyed) {
+                    gameState.score += platform.points;
+                    updateScore();
                     
-                    const isDead = enemy.takeDamage(this.damage);
-                    this.createImpactEffect();
-                    this.active = false;
-                    playSound('hit');
+                    // Remove destroyed platform
+                    gameState.platforms.splice(i, 1);
                     
-                    if (isDead) {
-                        gameState.enemies.splice(i, 1);
-                        gameState.score += 100;
-                        updateScore();
-                        
-                        // Spawn new enemy
-                        setTimeout(() => {
-                            spawnEnemy();
-                        }, 1000);
-                    }
-                    
-                    break;
+                    // Spawn new platform after delay
+                    setTimeout(() => {
+                        spawnPlatform();
+                    }, 2000);
                 }
+                
+                break;
             }
         }
     }
@@ -593,7 +665,6 @@ class Arrow {
             case 'fire': return '#ff4444';
             case 'heavy': return '#444444';
             case 'split': return '#4444ff';
-            case 'enemy': return '#cc2222';
             default: return '#8B4513';
         }
     }
@@ -653,9 +724,9 @@ function init() {
     // Create player
     gameState.player = new Player(80, canvas.height / 2);
     
-    // Create initial enemies
-    for (let i = 0; i < 2; i++) {
-        spawnEnemy();
+    // Create initial platforms
+    for (let i = 0; i < 4; i++) {
+        spawnPlatform();
     }
     
     // Event listeners
@@ -678,12 +749,15 @@ function init() {
     gameLoop();
 }
 
-function spawnEnemy() {
-    const side = Math.random() < 0.5 ? 'left' : 'right';
-    const x = side === 'left' ? canvas.width - 80 : canvas.width - 160 - Math.random() * 240;
-    const y = 80 + Math.random() * (canvas.height - 160);
+function spawnPlatform() {
+    const types = ['basic', 'small', 'large', 'moving'];
+    const type = types[Math.floor(Math.random() * types.length)];
     
-    gameState.enemies.push(new Enemy(x, y));
+    // Spawn on the right side of the screen
+    const x = canvas.width - 100 - Math.random() * 300;
+    const y = 80 + Math.random() * (canvas.height - 200);
+    
+    gameState.platforms.push(new Platform(x, y, type));
 }
 
 function handleMouseMove(event) {
@@ -772,7 +846,7 @@ function update() {
     // Update game objects
     gameState.player.update();
     
-    gameState.enemies.forEach(enemy => enemy.update());
+    gameState.platforms.forEach(platform => platform.update());
     
     gameState.arrows = gameState.arrows.filter(arrow => {
         arrow.update();
@@ -788,6 +862,12 @@ function update() {
     if (Math.random() < 0.01) {
         gameState.wind += (Math.random() - 0.5) * 0.1;
         gameState.wind = Math.max(-1, Math.min(1, gameState.wind));
+    }
+    
+    // Check if we need more platforms
+    const activePlatforms = gameState.platforms.filter(p => !p.destroyed).length;
+    if (activePlatforms < 2) {
+        spawnPlatform();
     }
 }
 
@@ -814,13 +894,13 @@ function draw() {
     gameState.particles.forEach(particle => particle.draw());
     gameState.arrows.forEach(arrow => arrow.draw());
     gameState.player.draw();
-    gameState.enemies.forEach(enemy => enemy.draw());
+    gameState.platforms.forEach(platform => platform.draw());
 }
 
 function restartGame() {
     gameState = {
         player: new Player(80, canvas.height / 2),
-        enemies: [],
+        platforms: [],
         arrows: [],
         particles: [],
         score: 0,
@@ -838,9 +918,9 @@ function restartGame() {
         keys: {}
     };
     
-    // Spawn initial enemies
-    for (let i = 0; i < 2; i++) {
-        spawnEnemy();
+    // Spawn initial platforms
+    for (let i = 0; i < 4; i++) {
+        spawnPlatform();
     }
     
     // Reset UI
