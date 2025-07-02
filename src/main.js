@@ -105,8 +105,8 @@ class Joint {
         this.y += velY + GRAVITY;
         
         // Ground collision
-        if (this.y > canvas.height - 40) {
-            this.y = canvas.height - 40;
+        if (this.y > canvas.height - 30) {
+            this.y = canvas.height - 30;
             this.oldY = this.y + velY * 0.8; // Bounce
         }
         
@@ -611,8 +611,8 @@ class Arrow {
         }
         
         // Ground collision
-        if (this.y > canvas.height - 40) {
-            this.y = canvas.height - 40;
+        if (this.y > canvas.height - 30) {
+            this.y = canvas.height - 30;
             this.vy = -this.vy * 0.3;
             this.vx *= 0.8;
             
@@ -861,18 +861,18 @@ function init() {
     
     initAudio();
     
-    // Create player at visible position
-    gameState.player = new Ragdoll(100, 400, true);
+    // Create player at visible position (adjusted for smaller canvas)
+    gameState.player = new Ragdoll(80, 320, true);
     console.log('Player created at:', gameState.player.head.x, gameState.player.head.y);
     
     // Create enemies at visible positions
     spawnEnemies();
     
-    // Create platforms
+    // Create platforms (adjusted for smaller canvas)
     gameState.platforms = [
-        new Platform(200, canvas.height - 80, 150, 40),
-        new Platform(450, canvas.height - 120, 100, 80),
-        new Platform(650, canvas.height - 60, 120, 20)
+        new Platform(150, canvas.height - 60, 100, 30),
+        new Platform(350, canvas.height - 90, 80, 60),
+        new Platform(550, canvas.height - 50, 100, 20)
     ];
     
     // Event listeners
@@ -900,11 +900,11 @@ function spawnEnemies() {
     // Clear existing enemies
     gameState.enemies = [];
     
-    // Spawn enemies at clearly visible positions
+    // Spawn enemies at clearly visible positions (adjusted for smaller canvas)
     const enemyPositions = [
-        { x: 300, y: 400 },  // Ground level
-        { x: 500, y: 350 },  // Slightly elevated
-        { x: 700, y: 400 },  // Ground level
+        { x: 250, y: 320 },  // Ground level
+        { x: 400, y: 280 },  // Slightly elevated
+        { x: 600, y: 320 },  // Ground level
     ];
     
     enemyPositions.forEach((pos, index) => {
@@ -1045,20 +1045,20 @@ function draw() {
     
     // Draw ground
     ctx.fillStyle = '#228B22';
-    ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+    ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
     
     // Draw platforms
     gameState.platforms.forEach(platform => platform.draw());
     
     // Draw wind indicator
     ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.font = '16px Arial';
-    ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 120, 30);
+    ctx.font = '14px Arial';
+    ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 100, 25);
     
     // Draw controls hint
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.font = '12px Arial';
-    ctx.fillText('Keys: 1-Regular 2-Fire 3-Heavy 4-Split | Mouse: Aim & Shoot', 10, canvas.height - 10);
+    ctx.font = '10px Arial';
+    ctx.fillText('Keys: 1-Regular 2-Fire 3-Heavy 4-Split | Mouse: Aim & Shoot', 10, canvas.height - 8);
     
     // Draw particles
     gameState.particles.forEach(particle => particle.draw());
@@ -1074,15 +1074,15 @@ function draw() {
     
     // Debug info
     ctx.fillStyle = 'white';
-    ctx.font = '12px Arial';
-    ctx.fillText(`Player: ${gameState.player ? 'Yes' : 'No'}`, 10, 50);
-    ctx.fillText(`Enemies: ${gameState.enemies.length}`, 10, 65);
-    ctx.fillText(`Arrows: ${gameState.arrows.length}`, 10, 80);
+    ctx.font = '10px Arial';
+    ctx.fillText(`Player: ${gameState.player ? 'Yes' : 'No'}`, 10, 40);
+    ctx.fillText(`Enemies: ${gameState.enemies.length}`, 10, 52);
+    ctx.fillText(`Arrows: ${gameState.arrows.length}`, 10, 64);
 }
 
 function restartGame() {
     gameState = {
-        player: new Ragdoll(100, 400, true),
+        player: new Ragdoll(80, 320, true),
         enemies: [],
         arrows: [],
         particles: [],
@@ -1100,9 +1100,9 @@ function restartGame() {
         },
         keys: {},
         platforms: [
-            new Platform(200, canvas.height - 80, 150, 40),
-            new Platform(450, canvas.height - 120, 100, 80),
-            new Platform(650, canvas.height - 60, 120, 20)
+            new Platform(150, canvas.height - 60, 100, 30),
+            new Platform(350, canvas.height - 90, 80, 60),
+            new Platform(550, canvas.height - 50, 100, 20)
         ]
     };
     
