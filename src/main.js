@@ -185,23 +185,23 @@ class Ragdoll {
         this.deathTimer = 0;
         this.color = isPlayer ? '#4A90E2' : '#E74C3C';
         
-        // Create joints (body parts) - adjusted for proper positioning
-        this.head = new Joint(x, y - 30);
-        this.neck = new Joint(x, y - 20);
-        this.chest = new Joint(x, y - 5);
-        this.waist = new Joint(x, y + 10);
-        this.leftShoulder = new Joint(x - 12, y - 15);
-        this.rightShoulder = new Joint(x + 12, y - 15);
-        this.leftElbow = new Joint(x - 20, y);
-        this.rightElbow = new Joint(x + 20, y);
-        this.leftHand = new Joint(x - 25, y + 15);
-        this.rightHand = new Joint(x + 25, y + 15);
-        this.leftHip = new Joint(x - 6, y + 20);
-        this.rightHip = new Joint(x + 6, y + 20);
-        this.leftKnee = new Joint(x - 8, y + 35);
-        this.rightKnee = new Joint(x + 8, y + 35);
-        this.leftFoot = new Joint(x - 10, y + 50);
-        this.rightFoot = new Joint(x + 10, y + 50);
+        // Create joints (body parts) - simple and visible
+        this.head = new Joint(x, y - 25);
+        this.neck = new Joint(x, y - 15);
+        this.chest = new Joint(x, y);
+        this.waist = new Joint(x, y + 15);
+        this.leftShoulder = new Joint(x - 10, y - 10);
+        this.rightShoulder = new Joint(x + 10, y - 10);
+        this.leftElbow = new Joint(x - 15, y + 5);
+        this.rightElbow = new Joint(x + 15, y + 5);
+        this.leftHand = new Joint(x - 20, y + 20);
+        this.rightHand = new Joint(x + 20, y + 20);
+        this.leftHip = new Joint(x - 5, y + 25);
+        this.rightHip = new Joint(x + 5, y + 25);
+        this.leftKnee = new Joint(x - 7, y + 40);
+        this.rightKnee = new Joint(x + 7, y + 40);
+        this.leftFoot = new Joint(x - 10, y + 55);
+        this.rightFoot = new Joint(x + 10, y + 55);
         
         this.joints = [
             this.head, this.neck, this.chest, this.waist,
@@ -210,17 +210,17 @@ class Ragdoll {
             this.leftKnee, this.rightKnee, this.leftFoot, this.rightFoot
         ];
         
-        // Create sticks (bones/limbs) - adjusted lengths
+        // Create sticks (bones/limbs) - simple structure
         this.sticks = [
             // Spine
-            new Stick(this.head, this.neck, 12),
+            new Stick(this.head, this.neck, 10),
             new Stick(this.neck, this.chest, 15),
             new Stick(this.chest, this.waist, 15),
             // Arms
-            new Stick(this.chest, this.leftShoulder, 12),
-            new Stick(this.chest, this.rightShoulder, 12),
-            new Stick(this.leftShoulder, this.leftElbow, 15),
-            new Stick(this.rightShoulder, this.rightElbow, 15),
+            new Stick(this.chest, this.leftShoulder, 10),
+            new Stick(this.chest, this.rightShoulder, 10),
+            new Stick(this.leftShoulder, this.leftElbow, 12),
+            new Stick(this.rightShoulder, this.rightElbow, 12),
             new Stick(this.leftElbow, this.leftHand, 15),
             new Stick(this.rightElbow, this.rightHand, 15),
             // Legs
@@ -231,8 +231,8 @@ class Ragdoll {
             new Stick(this.leftKnee, this.leftFoot, 15),
             new Stick(this.rightKnee, this.rightFoot, 15),
             // Cross braces for stability
-            new Stick(this.leftHip, this.rightHip, 12),
-            new Stick(this.leftShoulder, this.rightShoulder, 24)
+            new Stick(this.leftHip, this.rightHip, 10),
+            new Stick(this.leftShoulder, this.rightShoulder, 20)
         ];
         
         // Player-specific properties
@@ -849,12 +849,23 @@ function selectArrowType(type) {
 
 // Game functions
 function init() {
+    console.log('Initializing game...');
+    
+    // Ensure canvas is ready
+    if (!canvas || !ctx) {
+        console.error('Canvas not found!');
+        return;
+    }
+    
+    console.log('Canvas size:', canvas.width, 'x', canvas.height);
+    
     initAudio();
     
-    // Create player at proper position
-    gameState.player = new Ragdoll(80, canvas.height - 120, true);
+    // Create player at visible position
+    gameState.player = new Ragdoll(100, 400, true);
+    console.log('Player created at:', gameState.player.head.x, gameState.player.head.y);
     
-    // Create enemies at proper positions
+    // Create enemies at visible positions
     spawnEnemies();
     
     // Create platforms
@@ -879,21 +890,27 @@ function init() {
         });
     });
     
+    console.log('Game initialized, starting loop...');
+    
     // Start game loop
     gameLoop();
 }
 
 function spawnEnemies() {
-    // Spawn enemies at proper visible positions
+    // Clear existing enemies
+    gameState.enemies = [];
+    
+    // Spawn enemies at clearly visible positions
     const enemyPositions = [
-        { x: 275, y: canvas.height - 140 }, // On first platform
-        { x: 500, y: canvas.height - 180 }, // On second platform
-        { x: 710, y: canvas.height - 120 }, // On third platform
-        { x: 600, y: canvas.height - 120 }  // On ground
+        { x: 300, y: 400 },  // Ground level
+        { x: 500, y: 350 },  // Slightly elevated
+        { x: 700, y: 400 },  // Ground level
     ];
     
-    enemyPositions.forEach(pos => {
-        gameState.enemies.push(new Ragdoll(pos.x, pos.y, false));
+    enemyPositions.forEach((pos, index) => {
+        const enemy = new Ragdoll(pos.x, pos.y, false);
+        gameState.enemies.push(enemy);
+        console.log(`Enemy ${index + 1} created at:`, enemy.head.x, enemy.head.y);
     });
 }
 
@@ -1054,11 +1071,18 @@ function draw() {
         gameState.player.draw();
     }
     gameState.enemies.forEach(enemy => enemy.draw());
+    
+    // Debug info
+    ctx.fillStyle = 'white';
+    ctx.font = '12px Arial';
+    ctx.fillText(`Player: ${gameState.player ? 'Yes' : 'No'}`, 10, 50);
+    ctx.fillText(`Enemies: ${gameState.enemies.length}`, 10, 65);
+    ctx.fillText(`Arrows: ${gameState.arrows.length}`, 10, 80);
 }
 
 function restartGame() {
     gameState = {
-        player: new Ragdoll(80, canvas.height - 120, true),
+        player: new Ragdoll(100, 400, true),
         enemies: [],
         arrows: [],
         particles: [],
@@ -1096,5 +1120,15 @@ function restartGame() {
     document.querySelector('.arrow-type[data-type="regular"]').classList.add('selected');
 }
 
-// Start the game
-init();
+// Start the game when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, starting game...');
+    init();
+});
+
+// Also start immediately in case DOM is already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
