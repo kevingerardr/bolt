@@ -3,20 +3,22 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // Game constants
-const GRAVITY = 0.08; // Reduced gravity for longer travel
-const WIND_STRENGTH = 0.05;
-const MAX_POWER = 50;
-const ARROW_SPEED_MULTIPLIER = 0.2; // Increased for longer travel
+const GRAVITY = 0.3;
+const WIND_STRENGTH = 0.02;
+const MAX_POWER = 60;
+const ARROW_SPEED_MULTIPLIER = 0.15;
+const JOINT_STIFFNESS = 0.8;
+const JOINT_DAMPING = 0.95;
 
 // Game state
 let gameState = {
     player: null,
-    platforms: [], // Changed from enemies to platforms
+    enemies: [],
     arrows: [],
     particles: [],
     score: 0,
     gameOver: false,
-    wind: Math.random() * 2 - 1, // -1 to 1
+    wind: Math.random() * 2 - 1,
     mousePos: { x: 0, y: 0 },
     isCharging: false,
     chargePower: 0,
@@ -26,7 +28,8 @@ let gameState = {
         heavy: 5,
         split: 3
     },
-    keys: {} // Track pressed keys
+    keys: {},
+    platforms: [] // Ground platforms
 };
 
 // Audio context for sound effects
@@ -44,14 +47,11 @@ function initAudio() {
 }
 
 function createSounds() {
-    // Bow draw sound
     sounds.bowDraw = createTone(200, 0.1, 'sawtooth');
-    // Arrow release sound
     sounds.arrowRelease = createTone(400, 0.2, 'triangle');
-    // Hit sound
     sounds.hit = createTone(150, 0.3, 'square');
-    // Fire arrow sound
     sounds.fire = createTone(300, 0.4, 'sawtooth');
+    sounds.death = createTone(100, 0.8, 'square');
 }
 
 function createTone(frequency, duration, type = 'sine') {
@@ -81,44 +81,364 @@ function playSound(soundName) {
     }
 }
 
-// Player class
-class Player {
-    constructor(x, y) {
+// Ragdoll physics classes
+class Joint {
+    constructor(x, y, pinned = false) {
         this.x = x;
         this.y = y;
-        this.width = 32;
-        this.height = 48;
-        this.health = 100;
-        this.maxHealth = 100;
-        this.angle = 0;
-        this.bowLength = 40;
+        this.oldX = x;
+        this.oldY = y;
+        this.pinned = pinned;
+        this.radius = 4;
     }
     
     update() {
-        // Calculate angle to mouse
-        const dx = gameState.mousePos.x - this.x;
-        const dy = gameState.mousePos.y - this.y;
-        this.angle = Math.atan2(dy, dx);
+        if (this.pinned) return;
+        
+        const velX = (this.x - this.oldX) * JOINT_DAMPING;
+        const velY = (this.y - this.oldY) * JOINT_DAMPING;
+        
+        this.oldX = this.x;
+        this.oldY = this.y;
+        
+        this.x += velX;
+        this.y += velY + GRAVITY;
+        
+        // Ground collision
+        if (this.y > canvas.height - 40) {
+            this.y = canvas.height - 40;
+            this.oldY = this.y + velY * 0.8; // Bounce
+        }
+        
+        // Side boundaries
+        if (this.x < 0) {
+            this.x = 0;
+            this.oldX = this.x - velX * 0.5;
+        }
+        if (this.x > canvas.width) {
+            this.x = canvas.width;
+            this.oldX = this.x - velX * 0.5;
+        }
+    }
+    
+    draw() {
+        ctx.fillStyle = '#FFE4B5';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#DEB887';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+}
+
+class Stick {
+    constructor(joint1, joint2, length = null) {
+        this.joint1 = joint1;
+        this.joint2 = joint2;
+        this.length = length || this.getDistance();
+        this.thickness = 3;
+    }
+    
+    getDistance() {
+        const dx = this.joint1.x - this.joint2.x;
+        const dy = this.joint1.y - this.joint2.y;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    
+    update() {
+        const dx = this.joint1.x - this.joint2.x;
+        const dy = this.joint1.y - this.joint2.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const difference = this.length - distance;
+        const percent = difference / distance / 2;
+        const offsetX = dx * percent * JOINT_STIFFNESS;
+        const offsetY = dy * percent * JOINT_STIFFNESS;
+        
+        if (!this.joint1.pinned) {
+            this.joint1.x += offsetX;
+            this.joint1.y += offsetY;
+        }
+        if (!this.joint2.pinned) {
+            this.joint2.x -= offsetX;
+            this.joint2.y -= offsetY;
+        }
+    }
+    
+    draw() {
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = this.thickness;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(this.joint1.x, this.joint1.y);
+        ctx.lineTo(this.joint2.x, this.joint2.y);
+        ctx.stroke();
+    }
+}
+
+class Ragdoll {
+    constructor(x, y, isPlayer = false) {
+        this.isPlayer = isPlayer;
+        this.health = 100;
+        this.maxHealth = 100;
+        this.dead = false;
+        this.deathTimer = 0;
+        this.color = isPlayer ? '#4A90E2' : '#E74C3C';
+        
+        // Create joints (body parts)
+        this.head = new Joint(x, y - 40);
+        this.neck = new Joint(x, y - 25);
+        this.chest = new Joint(x, y - 10);
+        this.waist = new Joint(x, y + 5);
+        this.leftShoulder = new Joint(x - 15, y - 20);
+        this.rightShoulder = new Joint(x + 15, y - 20);
+        this.leftElbow = new Joint(x - 25, y - 5);
+        this.rightElbow = new Joint(x + 25, y - 5);
+        this.leftHand = new Joint(x - 30, y + 10);
+        this.rightHand = new Joint(x + 30, y + 10);
+        this.leftHip = new Joint(x - 8, y + 15);
+        this.rightHip = new Joint(x + 8, y + 15);
+        this.leftKnee = new Joint(x - 12, y + 35);
+        this.rightKnee = new Joint(x + 12, y + 35);
+        this.leftFoot = new Joint(x - 15, y + 55);
+        this.rightFoot = new Joint(x + 15, y + 55);
+        
+        this.joints = [
+            this.head, this.neck, this.chest, this.waist,
+            this.leftShoulder, this.rightShoulder, this.leftElbow, this.rightElbow,
+            this.leftHand, this.rightHand, this.leftHip, this.rightHip,
+            this.leftKnee, this.rightKnee, this.leftFoot, this.rightFoot
+        ];
+        
+        // Create sticks (bones/limbs)
+        this.sticks = [
+            // Spine
+            new Stick(this.head, this.neck, 15),
+            new Stick(this.neck, this.chest, 15),
+            new Stick(this.chest, this.waist, 15),
+            // Arms
+            new Stick(this.chest, this.leftShoulder, 15),
+            new Stick(this.chest, this.rightShoulder, 15),
+            new Stick(this.leftShoulder, this.leftElbow, 20),
+            new Stick(this.rightShoulder, this.rightElbow, 20),
+            new Stick(this.leftElbow, this.leftHand, 20),
+            new Stick(this.rightElbow, this.rightHand, 20),
+            // Legs
+            new Stick(this.waist, this.leftHip, 10),
+            new Stick(this.waist, this.rightHip, 10),
+            new Stick(this.leftHip, this.leftKnee, 20),
+            new Stick(this.rightHip, this.rightKnee, 20),
+            new Stick(this.leftKnee, this.leftFoot, 20),
+            new Stick(this.rightKnee, this.rightFoot, 20),
+            // Cross braces for stability
+            new Stick(this.leftHip, this.rightHip, 16),
+            new Stick(this.leftShoulder, this.rightShoulder, 30)
+        ];
+        
+        // Player-specific properties
+        if (isPlayer) {
+            this.bowLength = 35;
+            this.aimAngle = 0;
+        } else {
+            // Enemy AI properties
+            this.shootTimer = 0;
+            this.shootCooldown = 180 + Math.random() * 120;
+            this.accuracy = 0.7 + Math.random() * 0.3;
+        }
+    }
+    
+    update() {
+        if (this.dead) {
+            this.deathTimer++;
+            if (this.deathTimer > 300) { // Remove after 5 seconds
+                return false;
+            }
+        }
+        
+        // Update physics
+        for (let i = 0; i < 3; i++) { // Multiple iterations for stability
+            this.joints.forEach(joint => joint.update());
+            this.sticks.forEach(stick => stick.update());
+        }
+        
+        // Player-specific updates
+        if (this.isPlayer && !this.dead) {
+            this.updatePlayerAiming();
+        }
+        
+        // Enemy AI
+        if (!this.isPlayer && !this.dead) {
+            this.updateEnemyAI();
+        }
+        
+        return true;
+    }
+    
+    updatePlayerAiming() {
+        const dx = gameState.mousePos.x - this.rightHand.x;
+        const dy = gameState.mousePos.y - this.rightHand.y;
+        this.aimAngle = Math.atan2(dy, dx);
+        
+        // Position bow hand
+        if (gameState.isCharging) {
+            const pullBack = gameState.chargePower * 0.3;
+            this.rightHand.x = this.rightShoulder.x + Math.cos(this.aimAngle) * (25 - pullBack);
+            this.rightHand.y = this.rightShoulder.y + Math.sin(this.aimAngle) * (25 - pullBack);
+        }
+    }
+    
+    updateEnemyAI() {
+        this.shootTimer++;
+        
+        if (this.shootTimer > this.shootCooldown) {
+            this.shootAtPlayer();
+            this.shootTimer = 0;
+            this.shootCooldown = 120 + Math.random() * 180;
+        }
+    }
+    
+    shootAtPlayer() {
+        if (!gameState.player || gameState.player.dead) return;
+        
+        // Calculate aim towards player with some inaccuracy
+        const dx = gameState.player.chest.x - this.rightHand.x;
+        const dy = gameState.player.chest.y - this.rightHand.y;
+        const baseAngle = Math.atan2(dy, dx);
+        const inaccuracy = (Math.random() - 0.5) * (2 - this.accuracy);
+        const aimAngle = baseAngle + inaccuracy;
+        
+        const power = 30 + Math.random() * 20;
+        const velocity = power * ARROW_SPEED_MULTIPLIER;
+        const vx = Math.cos(aimAngle) * velocity;
+        const vy = Math.sin(aimAngle) * velocity;
+        
+        const arrow = new Arrow(
+            this.rightHand.x + Math.cos(aimAngle) * 15,
+            this.rightHand.y + Math.sin(aimAngle) * 15,
+            vx, vy, 'regular', false // false = enemy arrow
+        );
+        
+        gameState.arrows.push(arrow);
+        playSound('arrowRelease');
+    }
+    
+    takeDamage(damage, impactX, impactY, forceX = 0, forceY = 0) {
+        if (this.dead) return false;
+        
+        this.health -= damage;
+        
+        // Apply impact force to nearby joints
+        this.joints.forEach(joint => {
+            const dx = joint.x - impactX;
+            const dy = joint.y - impactY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < 50) {
+                const force = (50 - distance) / 50;
+                joint.x += forceX * force * 0.5;
+                joint.y += forceY * force * 0.5;
+                joint.oldX = joint.x - forceX * force * 0.3;
+                joint.oldY = joint.y - forceY * force * 0.3;
+            }
+        });
+        
+        // Create blood particles
+        for (let i = 0; i < 8; i++) {
+            const particle = new Particle(
+                impactX + (Math.random() - 0.5) * 10,
+                impactY + (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 6 + forceX * 0.1,
+                (Math.random() - 0.5) * 6 + forceY * 0.1,
+                '#8B0000',
+                30 + Math.random() * 20
+            );
+            gameState.particles.push(particle);
+        }
+        
+        if (this.health <= 0) {
+            this.health = 0;
+            this.dead = true;
+            playSound('death');
+            
+            if (this.isPlayer) {
+                gameState.gameOver = true;
+                document.getElementById('gameOver').style.display = 'block';
+                document.getElementById('finalScore').textContent = gameState.score;
+            } else {
+                gameState.score += 100;
+                updateScore();
+            }
+            
+            return true;
+        }
+        
+        return false;
     }
     
     draw() {
         ctx.save();
-        ctx.translate(this.x, this.y);
         
-        // Draw player body
-        ctx.fillStyle = '#4A90E2';
-        ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+        // Draw sticks (limbs) first
+        this.sticks.forEach(stick => {
+            stick.thickness = this.dead ? 2 : 3;
+            stick.draw();
+        });
         
-        // Draw bow
-        ctx.strokeStyle = '#8B4513';
-        ctx.lineWidth = 3;
+        // Draw joints (body parts)
+        this.joints.forEach(joint => {
+            joint.radius = this.dead ? 3 : 4;
+            joint.draw();
+        });
+        
+        // Draw head
+        ctx.fillStyle = this.dead ? '#DDD' : '#FFE4B5';
         ctx.beginPath();
+        ctx.arc(this.head.x, this.head.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#DEB887';
+        ctx.lineWidth = 2;
+        ctx.stroke();
         
-        const bowX = Math.cos(this.angle) * 16;
-        const bowY = Math.sin(this.angle) * 16;
+        // Draw eyes if alive
+        if (!this.dead) {
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(this.head.x - 3, this.head.y - 2, 1.5, 0, Math.PI * 2);
+            ctx.arc(this.head.x + 3, this.head.y - 2, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
         
-        ctx.moveTo(bowX, bowY);
-        ctx.lineTo(bowX + Math.cos(this.angle) * this.bowLength, bowY + Math.sin(this.angle) * this.bowLength);
+        // Draw bow for player
+        if (this.isPlayer && !this.dead) {
+            this.drawBow();
+        }
+        
+        // Draw health bar
+        if (!this.dead) {
+            this.drawHealthBar();
+        }
+        
+        // Draw trajectory prediction for player
+        if (this.isPlayer && gameState.isCharging && !this.dead) {
+            this.drawTrajectoryPrediction();
+        }
+        
+        ctx.restore();
+    }
+    
+    drawBow() {
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        
+        const bowStartX = this.leftHand.x;
+        const bowStartY = this.leftHand.y;
+        const bowEndX = bowStartX + Math.cos(this.aimAngle) * this.bowLength;
+        const bowEndY = bowStartY + Math.sin(this.aimAngle) * this.bowLength;
+        
+        ctx.beginPath();
+        ctx.moveTo(bowStartX, bowStartY);
+        ctx.lineTo(bowEndX, bowEndY);
         ctx.stroke();
         
         // Draw bow string
@@ -127,42 +447,53 @@ class Player {
             ctx.lineWidth = 2;
             ctx.beginPath();
             
-            const stringOffset = gameState.chargePower * 0.4;
-            const perpAngle = this.angle + Math.PI / 2;
+            const stringPull = gameState.chargePower * 0.4;
+            const perpAngle = this.aimAngle + Math.PI / 2;
             
-            ctx.moveTo(bowX + Math.cos(perpAngle) * 12, bowY + Math.sin(perpAngle) * 12);
-            ctx.lineTo(bowX - Math.cos(this.angle) * stringOffset, bowY - Math.sin(this.angle) * stringOffset);
-            ctx.lineTo(bowX - Math.cos(perpAngle) * 12, bowY - Math.sin(perpAngle) * 12);
+            ctx.moveTo(bowStartX + Math.cos(perpAngle) * 8, bowStartY + Math.sin(perpAngle) * 8);
+            ctx.lineTo(this.rightHand.x, this.rightHand.y);
+            ctx.lineTo(bowStartX - Math.cos(perpAngle) * 8, bowStartY - Math.sin(perpAngle) * 8);
             ctx.stroke();
         }
+    }
+    
+    drawHealthBar() {
+        const barWidth = 40;
+        const barHeight = 6;
+        const barX = this.head.x - barWidth / 2;
+        const barY = this.head.y - 20;
         
-        // Draw trajectory prediction
-        if (gameState.isCharging) {
-            this.drawTrajectoryPrediction();
-        }
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
         
-        ctx.restore();
+        const healthPercent = this.health / this.maxHealth;
+        ctx.fillStyle = healthPercent > 0.5 ? '#2ECC71' : healthPercent > 0.25 ? '#F39C12' : '#E74C3C';
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        
+        ctx.strokeStyle = '#FFF';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
     
     drawTrajectoryPrediction() {
         const power = gameState.chargePower;
         const velocity = power * ARROW_SPEED_MULTIPLIER;
-        const vx = Math.cos(this.angle) * velocity;
-        const vy = Math.sin(this.angle) * velocity;
+        const vx = Math.cos(this.aimAngle) * velocity;
+        const vy = Math.sin(this.aimAngle) * velocity;
         
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         
-        let x = this.x;
-        let y = this.y;
+        let x = this.rightHand.x;
+        let y = this.rightHand.y;
         let velX = vx;
         let velY = vy;
         
         ctx.moveTo(x, y);
         
-        for (let i = 0; i < 80; i++) { // Increased prediction length
+        for (let i = 0; i < 60; i++) {
             velY += GRAVITY;
             velX += gameState.wind * WIND_STRENGTH;
             x += velX;
@@ -179,28 +510,15 @@ class Player {
         ctx.setLineDash([]);
     }
     
-    takeDamage(damage) {
-        this.health -= damage;
-        if (this.health <= 0) {
-            this.health = 0;
-            gameState.gameOver = true;
-            document.getElementById('gameOver').style.display = 'block';
-            document.getElementById('finalScore').textContent = gameState.score;
-        }
-        updateHealthBar();
-    }
-    
     shoot() {
-        if (gameState.chargePower < 3) return;
+        if (gameState.chargePower < 3 || this.dead) return;
         
         const arrowType = gameState.selectedArrowType;
         
-        // Check ammo
         if (arrowType !== 'regular' && gameState.arrowCounts[arrowType] <= 0) {
             return;
         }
         
-        // Consume ammo
         if (arrowType !== 'regular') {
             gameState.arrowCounts[arrowType]--;
             updateArrowCounts();
@@ -208,13 +526,13 @@ class Player {
         
         const power = gameState.chargePower;
         const velocity = power * ARROW_SPEED_MULTIPLIER;
-        const vx = Math.cos(this.angle) * velocity;
-        const vy = Math.sin(this.angle) * velocity;
+        const vx = Math.cos(this.aimAngle) * velocity;
+        const vy = Math.sin(this.aimAngle) * velocity;
         
         const arrow = new Arrow(
-            this.x + Math.cos(this.angle) * 24,
-            this.y + Math.sin(this.angle) * 24,
-            vx, vy, arrowType
+            this.rightHand.x + Math.cos(this.aimAngle) * 15,
+            this.rightHand.y + Math.sin(this.aimAngle) * 15,
+            vx, vy, arrowType, true // true = player arrow
         );
         
         gameState.arrows.push(arrow);
@@ -226,259 +544,56 @@ class Player {
     }
 }
 
-// Platform class (replaces Enemy)
-class Platform {
-    constructor(x, y, type = 'basic') {
-        this.x = x;
-        this.y = y;
-        this.type = type;
-        this.width = this.getWidth();
-        this.height = this.getHeight();
-        this.health = this.getMaxHealth();
-        this.maxHealth = this.getMaxHealth();
-        this.color = this.getColor();
-        this.points = this.getPoints();
-        this.destroyed = false;
-        
-        // Visual effects
-        this.hitFlash = 0;
-        this.particles = [];
-    }
-    
-    getWidth() {
-        switch (this.type) {
-            case 'small': return 40;
-            case 'large': return 80;
-            case 'moving': return 50;
-            default: return 60; // basic
-        }
-    }
-    
-    getHeight() {
-        switch (this.type) {
-            case 'small': return 30;
-            case 'large': return 60;
-            case 'moving': return 40;
-            default: return 40; // basic
-        }
-    }
-    
-    getMaxHealth() {
-        switch (this.type) {
-            case 'small': return 30;
-            case 'large': return 100;
-            case 'moving': return 60;
-            default: return 50; // basic
-        }
-    }
-    
-    getColor() {
-        switch (this.type) {
-            case 'small': return '#E74C3C';
-            case 'large': return '#8E44AD';
-            case 'moving': return '#F39C12';
-            default: return '#E67E22'; // basic
-        }
-    }
-    
-    getPoints() {
-        switch (this.type) {
-            case 'small': return 150;
-            case 'large': return 200;
-            case 'moving': return 300;
-            default: return 100; // basic
-        }
-    }
-    
-    update() {
-        // Moving platforms oscillate up and down
-        if (this.type === 'moving') {
-            this.y += Math.sin(Date.now() * 0.003) * 0.8;
-        }
-        
-        // Update hit flash
-        if (this.hitFlash > 0) {
-            this.hitFlash--;
-        }
-        
-        // Update particles
-        this.particles = this.particles.filter(particle => {
-            particle.update();
-            return !particle.isDead();
-        });
-    }
-    
-    draw() {
-        if (this.destroyed) return;
-        
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        
-        // Flash effect when hit
-        if (this.hitFlash > 0) {
-            ctx.fillStyle = '#FFFFFF';
-        } else {
-            ctx.fillStyle = this.color;
-        }
-        
-        // Draw platform base
-        ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
-        
-        // Draw platform details based on type
-        ctx.fillStyle = this.getDarkerColor();
-        
-        if (this.type === 'small') {
-            // Simple target circle
-            ctx.beginPath();
-            ctx.arc(0, 0, 12, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (this.type === 'large') {
-            // Bullseye target
-            ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath();
-            ctx.arc(0, 0, 20, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = this.getDarkerColor();
-            ctx.beginPath();
-            ctx.arc(0, 0, 15, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath();
-            ctx.arc(0, 0, 8, 0, Math.PI * 2);
-            ctx.fill();
-        } else if (this.type === 'moving') {
-            // Diamond shape
-            ctx.beginPath();
-            ctx.moveTo(0, -15);
-            ctx.lineTo(15, 0);
-            ctx.lineTo(0, 15);
-            ctx.lineTo(-15, 0);
-            ctx.closePath();
-            ctx.fill();
-        } else {
-            // Basic rectangular target
-            ctx.fillRect(-15, -10, 30, 20);
-        }
-        
-        // Draw health bar
-        const barWidth = this.width - 10;
-        const barHeight = 6;
-        const barY = -this.height/2 - 12;
-        
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(-barWidth/2, barY, barWidth, barHeight);
-        
-        const healthPercent = this.health / this.maxHealth;
-        ctx.fillStyle = healthPercent > 0.5 ? '#2ECC71' : healthPercent > 0.25 ? '#F39C12' : '#E74C3C';
-        ctx.fillRect(-barWidth/2, barY, barWidth * healthPercent, barHeight);
-        
-        // Draw particles
-        this.particles.forEach(particle => particle.draw());
-        
-        ctx.restore();
-    }
-    
-    getDarkerColor() {
-        switch (this.type) {
-            case 'small': return '#C0392B';
-            case 'large': return '#6C3483';
-            case 'moving': return '#D68910';
-            default: return '#D35400'; // basic
-        }
-    }
-    
-    takeDamage(damage) {
-        this.health -= damage;
-        this.hitFlash = 10;
-        
-        // Create hit particles
-        for (let i = 0; i < 5; i++) {
-            const particle = new Particle(
-                (Math.random() - 0.5) * this.width,
-                (Math.random() - 0.5) * this.height,
-                (Math.random() - 0.5) * 4,
-                (Math.random() - 0.5) * 4,
-                this.color,
-                20 + Math.random() * 20
-            );
-            this.particles.push(particle);
-        }
-        
-        if (this.health <= 0) {
-            this.health = 0;
-            this.destroyed = true;
-            
-            // Create destruction particles
-            for (let i = 0; i < 15; i++) {
-                const particle = new Particle(
-                    (Math.random() - 0.5) * this.width,
-                    (Math.random() - 0.5) * this.height,
-                    (Math.random() - 0.5) * 8,
-                    (Math.random() - 0.5) * 8,
-                    this.color,
-                    40 + Math.random() * 30
-                );
-                gameState.particles.push(particle);
-            }
-            
-            return true; // Platform is destroyed
-        }
-        return false;
-    }
-}
-
 // Arrow class
 class Arrow {
-    constructor(x, y, vx, vy, type = 'regular') {
+    constructor(x, y, vx, vy, type = 'regular', isPlayerArrow = true) {
         this.x = x;
         this.y = y;
         this.vx = vx;
         this.vy = vy;
         this.type = type;
+        this.isPlayerArrow = isPlayerArrow;
         this.angle = Math.atan2(vy, vx);
-        this.length = this.getLength();
+        this.length = 18;
         this.damage = this.getDamage();
         this.trail = [];
         this.active = true;
         this.splitTimer = 0;
         this.hasSplit = false;
-        this.bounceCount = 0; // For ground bouncing
-    }
-    
-    getLength() {
-        switch (this.type) {
-            case 'heavy': return 24;
-            case 'split': return 18;
-            default: return 18;
-        }
+        this.stuck = false;
+        this.stuckTarget = null;
+        this.stuckOffsetX = 0;
+        this.stuckOffsetY = 0;
     }
     
     getDamage() {
         switch (this.type) {
-            case 'fire': return 30;
-            case 'heavy': return 45;
-            case 'split': return 20;
-            default: return 25;
+            case 'fire': return 35;
+            case 'heavy': return 50;
+            case 'split': return 25;
+            default: return 30;
         }
     }
     
     update() {
         if (!this.active) return;
         
+        if (this.stuck && this.stuckTarget) {
+            // Follow the stuck target
+            this.x = this.stuckTarget.x + this.stuckOffsetX;
+            this.y = this.stuckTarget.y + this.stuckOffsetY;
+            return;
+        }
+        
         // Store trail
         this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 12) {
+        if (this.trail.length > 8) {
             this.trail.shift();
         }
         
         // Apply physics
         this.vy += GRAVITY;
-        
-        // Apply wind (less effect on heavy arrows)
-        const windEffect = this.type === 'heavy' ? 0.3 : 1;
-        this.vx += gameState.wind * WIND_STRENGTH * windEffect;
+        this.vx += gameState.wind * WIND_STRENGTH;
         
         // Update position
         this.x += this.vx;
@@ -487,23 +602,27 @@ class Arrow {
         // Update angle
         this.angle = Math.atan2(this.vy, this.vx);
         
-        // Split arrow logic - Fixed to work properly
-        if (this.type === 'split' && !this.hasSplit) {
+        // Split arrow logic
+        if (this.type === 'split' && !this.hasSplit && this.isPlayerArrow) {
             this.splitTimer++;
-            if (this.splitTimer > 20) { // Split after a bit of travel
+            if (this.splitTimer > 15) {
                 this.split();
             }
         }
         
-        // Ground bounce for arrows (optional - makes them travel further)
-        if (this.y > canvas.height - 40 && this.vy > 0 && this.bounceCount < 2) {
-            this.vy = -this.vy * 0.6; // Bounce with energy loss
+        // Ground collision
+        if (this.y > canvas.height - 40) {
             this.y = canvas.height - 40;
-            this.bounceCount++;
+            this.vy = -this.vy * 0.3;
+            this.vx *= 0.8;
+            
+            if (Math.abs(this.vy) < 1) {
+                this.active = false;
+            }
         }
         
-        // Check bounds - arrows now travel much further
-        if (this.x < -100 || this.x > canvas.width + 100 || this.y > canvas.height + 100) {
+        // Check bounds
+        if (this.x < -50 || this.x > canvas.width + 50 || this.y > canvas.height + 50) {
             this.active = false;
         }
         
@@ -512,92 +631,88 @@ class Arrow {
     }
     
     split() {
-        if (this.hasSplit) return; // Prevent multiple splits
+        if (this.hasSplit) return;
         
         this.hasSplit = true;
         
-        // Create two additional arrows with proper spread
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        const spreadAngle = 0.5; // Wider spread
+        const spreadAngle = 0.4;
         
-        // Left arrow
-        const leftAngle = this.angle - spreadAngle;
         const leftArrow = new Arrow(
             this.x, this.y,
-            Math.cos(leftAngle) * currentSpeed * 0.9,
-            Math.sin(leftAngle) * currentSpeed * 0.9,
-            'split'
+            Math.cos(this.angle - spreadAngle) * currentSpeed * 0.8,
+            Math.sin(this.angle - spreadAngle) * currentSpeed * 0.8,
+            'split', this.isPlayerArrow
         );
-        leftArrow.hasSplit = true; // Prevent infinite splitting
+        leftArrow.hasSplit = true;
         
-        // Right arrow
-        const rightAngle = this.angle + spreadAngle;
         const rightArrow = new Arrow(
             this.x, this.y,
-            Math.cos(rightAngle) * currentSpeed * 0.9,
-            Math.sin(rightAngle) * currentSpeed * 0.9,
-            'split'
+            Math.cos(this.angle + spreadAngle) * currentSpeed * 0.8,
+            Math.sin(this.angle + spreadAngle) * currentSpeed * 0.8,
+            'split', this.isPlayerArrow
         );
-        rightArrow.hasSplit = true; // Prevent infinite splitting
+        rightArrow.hasSplit = true;
         
         gameState.arrows.push(leftArrow, rightArrow);
     }
     
     checkCollisions() {
-        // Check collision with platforms
-        for (let i = gameState.platforms.length - 1; i >= 0; i--) {
-            const platform = gameState.platforms[i];
-            if (platform.destroyed) continue;
+        const targets = this.isPlayerArrow ? gameState.enemies : [gameState.player];
+        
+        for (let target of targets) {
+            if (!target || target.dead) continue;
             
-            if (this.x > platform.x - platform.width/2 && this.x < platform.x + platform.width/2 &&
-                this.y > platform.y - platform.height/2 && this.y < platform.y + platform.height/2) {
+            // Check collision with each joint
+            for (let joint of target.joints) {
+                const dx = this.x - joint.x;
+                const dy = this.y - joint.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                const isDestroyed = platform.takeDamage(this.damage);
-                this.createImpactEffect();
-                this.active = false;
-                playSound('hit');
-                
-                if (isDestroyed) {
-                    gameState.score += platform.points;
-                    updateScore();
+                if (distance < joint.radius + 3) {
+                    // Calculate impact force
+                    const forceX = this.vx * 0.3;
+                    const forceY = this.vy * 0.3;
                     
-                    // Remove destroyed platform
-                    gameState.platforms.splice(i, 1);
+                    target.takeDamage(this.damage, this.x, this.y, forceX, forceY);
+                    this.createImpactEffect();
                     
-                    // Spawn new platform after delay
-                    setTimeout(() => {
-                        spawnPlatform();
-                    }, 2000);
+                    // Stick arrow to target
+                    this.stuck = true;
+                    this.stuckTarget = joint;
+                    this.stuckOffsetX = this.x - joint.x;
+                    this.stuckOffsetY = this.y - joint.y;
+                    this.vx = 0;
+                    this.vy = 0;
+                    
+                    playSound('hit');
+                    return;
                 }
-                
-                break;
             }
         }
     }
     
     createImpactEffect() {
-        // Create particles
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 8; i++) {
             const particle = new Particle(
                 this.x, this.y,
-                (Math.random() - 0.5) * 8,
-                (Math.random() - 0.5) * 8,
+                (Math.random() - 0.5) * 6,
+                (Math.random() - 0.5) * 6,
                 this.getParticleColor(),
-                40 + Math.random() * 30
+                30 + Math.random() * 20
             );
             gameState.particles.push(particle);
         }
         
-        // Fire arrow creates fire particles
         if (this.type === 'fire') {
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < 15; i++) {
                 const particle = new Particle(
-                    this.x + (Math.random() - 0.5) * 20,
-                    this.y + (Math.random() - 0.5) * 20,
-                    (Math.random() - 0.5) * 6,
-                    -Math.random() * 4,
+                    this.x + (Math.random() - 0.5) * 15,
+                    this.y + (Math.random() - 0.5) * 15,
+                    (Math.random() - 0.5) * 4,
+                    -Math.random() * 3,
                     `hsl(${Math.random() * 60}, 100%, 50%)`,
-                    80 + Math.random() * 60
+                    60 + Math.random() * 40
                 );
                 gameState.particles.push(particle);
             }
@@ -621,10 +736,10 @@ class Arrow {
         
         // Draw trail
         for (let i = 0; i < this.trail.length; i++) {
-            const alpha = i / this.trail.length * 0.7;
+            const alpha = i / this.trail.length * 0.5;
             ctx.globalAlpha = alpha;
             ctx.fillStyle = this.getArrowColor();
-            const size = 2 + (i / this.trail.length) * 2;
+            const size = 1 + (i / this.trail.length) * 2;
             ctx.fillRect(this.trail[i].x - size/2, this.trail[i].y - size/2, size, size);
         }
         
@@ -634,33 +749,32 @@ class Arrow {
         
         // Draw arrow shaft
         ctx.fillStyle = this.getArrowColor();
-        ctx.fillRect(-this.length/2, -2, this.length, 4);
+        ctx.fillRect(-this.length/2, -1.5, this.length, 3);
         
         // Draw arrow head
         ctx.beginPath();
         ctx.moveTo(this.length/2, 0);
-        ctx.lineTo(this.length/2 - 8, -5);
-        ctx.lineTo(this.length/2 - 8, 5);
+        ctx.lineTo(this.length/2 - 6, -3);
+        ctx.lineTo(this.length/2 - 6, 3);
         ctx.closePath();
         ctx.fill();
         
         // Draw fletching
         ctx.fillStyle = '#654321';
-        ctx.fillRect(-this.length/2, -4, 6, 8);
+        ctx.fillRect(-this.length/2, -3, 4, 6);
         
         // Special effects
         if (this.type === 'fire') {
-            // Fire trail
             ctx.shadowColor = '#ff6600';
-            ctx.shadowBlur = 15;
-            ctx.fillStyle = '#ff6600';
-            ctx.fillRect(-this.length/2, -2, this.length, 4);
+            ctx.shadowBlur = 10;
         }
         
         ctx.restore();
     }
     
     getArrowColor() {
+        if (!this.isPlayerArrow) return '#8B0000'; // Enemy arrows are dark red
+        
         switch (this.type) {
             case 'fire': return '#ff4444';
             case 'heavy': return '#444444';
@@ -685,8 +799,8 @@ class Particle {
     update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.05; // Gravity
-        this.vx *= 0.98; // Air resistance
+        this.vy += 0.1;
+        this.vx *= 0.98;
         this.life--;
     }
     
@@ -694,7 +808,7 @@ class Particle {
         const alpha = this.life / this.maxLife;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = this.color;
-        ctx.fillRect(this.x - 2, this.y - 2, 4, 4);
+        ctx.fillRect(this.x - 1, this.y - 1, 2, 2);
         ctx.globalAlpha = 1;
     }
     
@@ -703,16 +817,32 @@ class Particle {
     }
 }
 
+// Platform class for ground structures
+class Platform {
+    constructor(x, y, width, height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+    
+    draw() {
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.strokeStyle = '#654321';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.x, this.y, this.width, this.height);
+    }
+}
+
 // Arrow selection functions
 function selectArrowType(type) {
-    // Check if we have ammo for this arrow type
     if (type !== 'regular' && gameState.arrowCounts[type] <= 0) {
-        return; // Can't select if no ammo
+        return;
     }
     
     gameState.selectedArrowType = type;
     
-    // Update UI
     document.querySelector('.arrow-type.selected').classList.remove('selected');
     document.querySelector(`.arrow-type[data-type="${type}"]`).classList.add('selected');
 }
@@ -722,19 +852,23 @@ function init() {
     initAudio();
     
     // Create player
-    gameState.player = new Player(80, canvas.height / 2);
+    gameState.player = new Ragdoll(100, canvas.height - 100, true);
     
-    // Create initial platforms
-    for (let i = 0; i < 4; i++) {
-        spawnPlatform();
-    }
+    // Create enemies
+    spawnEnemies();
+    
+    // Create platforms
+    gameState.platforms = [
+        new Platform(200, canvas.height - 80, 150, 40),
+        new Platform(450, canvas.height - 120, 100, 80),
+        new Platform(650, canvas.height - 60, 120, 20)
+    ];
     
     // Event listeners
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
     
-    // Keyboard event listeners
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
     
@@ -749,15 +883,18 @@ function init() {
     gameLoop();
 }
 
-function spawnPlatform() {
-    const types = ['basic', 'small', 'large', 'moving'];
-    const type = types[Math.floor(Math.random() * types.length)];
+function spawnEnemies() {
+    // Spawn enemies on platforms and ground
+    const enemyPositions = [
+        { x: 275, y: canvas.height - 180 }, // On first platform
+        { x: 500, y: canvas.height - 220 }, // On second platform
+        { x: 710, y: canvas.height - 160 }, // On third platform
+        { x: 600, y: canvas.height - 100 }  // On ground
+    ];
     
-    // Spawn on the right side of the screen
-    const x = canvas.width - 100 - Math.random() * 300;
-    const y = 80 + Math.random() * (canvas.height - 200);
-    
-    gameState.platforms.push(new Platform(x, y, type));
+    enemyPositions.forEach(pos => {
+        gameState.enemies.push(new Ragdoll(pos.x, pos.y, false));
+    });
 }
 
 function handleMouseMove(event) {
@@ -767,17 +904,15 @@ function handleMouseMove(event) {
 }
 
 function handleMouseDown(event) {
-    if (gameState.gameOver) return;
+    if (gameState.gameOver || !gameState.player || gameState.player.dead) return;
     
     gameState.isCharging = true;
     gameState.chargePower = 0;
-    
-    // Start charging sound
     playSound('bowDraw');
 }
 
 function handleMouseUp(event) {
-    if (gameState.gameOver) return;
+    if (gameState.gameOver || !gameState.player || gameState.player.dead) return;
     
     if (gameState.isCharging) {
         gameState.player.shoot();
@@ -787,7 +922,6 @@ function handleMouseUp(event) {
 function handleKeyDown(event) {
     gameState.keys[event.key] = true;
     
-    // Arrow selection with number keys
     switch(event.key) {
         case '1':
             selectArrowType('regular');
@@ -815,7 +949,9 @@ function updatePowerMeter() {
 
 function updateHealthBar() {
     const healthFill = document.getElementById('playerHealthFill');
-    healthFill.style.width = (gameState.player.health / gameState.player.maxHealth * 100) + '%';
+    if (gameState.player) {
+        healthFill.style.width = (gameState.player.health / gameState.player.maxHealth * 100) + '%';
+    }
 }
 
 function updateScore() {
@@ -838,69 +974,92 @@ function gameLoop() {
 
 function update() {
     // Update charging
-    if (gameState.isCharging) {
-        gameState.chargePower = Math.min(gameState.chargePower + 1.5, MAX_POWER);
+    if (gameState.isCharging && gameState.player && !gameState.player.dead) {
+        gameState.chargePower = Math.min(gameState.chargePower + 1.2, MAX_POWER);
         updatePowerMeter();
     }
     
-    // Update game objects
-    gameState.player.update();
+    // Update player
+    if (gameState.player) {
+        if (!gameState.player.update()) {
+            gameState.player = null;
+        }
+    }
     
-    gameState.platforms.forEach(platform => platform.update());
+    // Update enemies
+    gameState.enemies = gameState.enemies.filter(enemy => enemy.update());
     
+    // Update arrows
     gameState.arrows = gameState.arrows.filter(arrow => {
         arrow.update();
         return arrow.active;
     });
     
+    // Update particles
     gameState.particles = gameState.particles.filter(particle => {
         particle.update();
         return !particle.isDead();
     });
     
-    // Update wind occasionally
+    // Update wind
     if (Math.random() < 0.01) {
         gameState.wind += (Math.random() - 0.5) * 0.1;
         gameState.wind = Math.max(-1, Math.min(1, gameState.wind));
     }
     
-    // Check if we need more platforms
-    const activePlatforms = gameState.platforms.filter(p => !p.destroyed).length;
-    if (activePlatforms < 2) {
-        spawnPlatform();
+    // Spawn new enemies if needed
+    if (gameState.enemies.length === 0 && !gameState.gameOver) {
+        setTimeout(() => {
+            spawnEnemies();
+        }, 3000);
     }
+    
+    // Update UI
+    updateHealthBar();
 }
 
 function draw() {
-    // Clear canvas
-    ctx.fillStyle = '#87CEEB';
+    // Clear canvas with sky gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#87CEEB');
+    gradient.addColorStop(1, '#98FB98');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     // Draw ground
     ctx.fillStyle = '#228B22';
     ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
     
+    // Draw platforms
+    gameState.platforms.forEach(platform => platform.draw());
+    
     // Draw wind indicator
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.font = '16px Arial';
     ctx.fillText(`Wind: ${gameState.wind > 0 ? '→' : '←'} ${Math.abs(gameState.wind).toFixed(1)}`, canvas.width - 120, 30);
     
-    // Draw keyboard controls hint
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    // Draw controls hint
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.font = '12px Arial';
-    ctx.fillText('Keys: 1-Regular 2-Fire 3-Heavy 4-Split', 10, canvas.height - 10);
+    ctx.fillText('Keys: 1-Regular 2-Fire 3-Heavy 4-Split | Mouse: Aim & Shoot', 10, canvas.height - 10);
     
-    // Draw game objects
+    // Draw particles
     gameState.particles.forEach(particle => particle.draw());
+    
+    // Draw arrows
     gameState.arrows.forEach(arrow => arrow.draw());
-    gameState.player.draw();
-    gameState.platforms.forEach(platform => platform.draw());
+    
+    // Draw ragdolls
+    if (gameState.player) {
+        gameState.player.draw();
+    }
+    gameState.enemies.forEach(enemy => enemy.draw());
 }
 
 function restartGame() {
     gameState = {
-        player: new Player(80, canvas.height / 2),
-        platforms: [],
+        player: new Ragdoll(100, canvas.height - 100, true),
+        enemies: [],
         arrows: [],
         particles: [],
         score: 0,
@@ -915,13 +1074,15 @@ function restartGame() {
             heavy: 5,
             split: 3
         },
-        keys: {}
+        keys: {},
+        platforms: [
+            new Platform(200, canvas.height - 80, 150, 40),
+            new Platform(450, canvas.height - 120, 100, 80),
+            new Platform(650, canvas.height - 60, 120, 20)
+        ]
     };
     
-    // Spawn initial platforms
-    for (let i = 0; i < 4; i++) {
-        spawnPlatform();
-    }
+    spawnEnemies();
     
     // Reset UI
     document.getElementById('gameOver').style.display = 'none';
