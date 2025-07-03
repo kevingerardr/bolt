@@ -9,6 +9,7 @@ const MAX_POWER = 60;
 const ARROW_SPEED_MULTIPLIER = 0.15;
 const JOINT_STIFFNESS = 0.8;
 const JOINT_DAMPING = 0.95;
+const GROUND_Y = 420; // Fixed ground level
 
 // Game state
 let gameState = {
@@ -104,10 +105,21 @@ class Joint {
         this.x += velX;
         this.y += velY + GRAVITY;
         
-        // Ground collision
-        if (this.y > canvas.height - 30) {
-            this.y = canvas.height - 30;
-            this.oldY = this.y + velY * 0.8; // Bounce
+        // Ground collision with proper constraint
+        if (this.y > GROUND_Y) {
+            this.y = GROUND_Y;
+            this.oldY = this.y + velY * 0.3; // Reduced bounce
+        }
+        
+        // Platform collisions
+        for (let platform of gameState.platforms) {
+            if (this.x > platform.x && this.x < platform.x + platform.width &&
+                this.y > platform.y && this.y < platform.y + platform.height + 10) {
+                if (this.oldY <= platform.y) {
+                    this.y = platform.y;
+                    this.oldY = this.y + velY * 0.3;
+                }
+            }
         }
         
         // Side boundaries
@@ -185,23 +197,25 @@ class Ragdoll {
         this.deathTimer = 0;
         this.color = isPlayer ? '#4A90E2' : '#E74C3C';
         
-        // Create joints (body parts) - simple and visible
-        this.head = new Joint(x, y - 25);
-        this.neck = new Joint(x, y - 15);
-        this.chest = new Joint(x, y);
-        this.waist = new Joint(x, y + 15);
-        this.leftShoulder = new Joint(x - 10, y - 10);
-        this.rightShoulder = new Joint(x + 10, y - 10);
-        this.leftElbow = new Joint(x - 15, y + 5);
-        this.rightElbow = new Joint(x + 15, y + 5);
-        this.leftHand = new Joint(x - 20, y + 20);
-        this.rightHand = new Joint(x + 20, y + 20);
-        this.leftHip = new Joint(x - 5, y + 25);
-        this.rightHip = new Joint(x + 5, y + 25);
-        this.leftKnee = new Joint(x - 7, y + 40);
-        this.rightKnee = new Joint(x + 7, y + 40);
-        this.leftFoot = new Joint(x - 10, y + 55);
-        this.rightFoot = new Joint(x + 10, y + 55);
+        // Create joints (body parts) - positioned above ground
+        const baseY = Math.min(y, GROUND_Y - 60); // Ensure character spawns above ground
+        
+        this.head = new Joint(x, baseY - 25);
+        this.neck = new Joint(x, baseY - 15);
+        this.chest = new Joint(x, baseY);
+        this.waist = new Joint(x, baseY + 15);
+        this.leftShoulder = new Joint(x - 10, baseY - 10);
+        this.rightShoulder = new Joint(x + 10, baseY - 10);
+        this.leftElbow = new Joint(x - 15, baseY + 5);
+        this.rightElbow = new Joint(x + 15, baseY + 5);
+        this.leftHand = new Joint(x - 20, baseY + 20);
+        this.rightHand = new Joint(x + 20, baseY + 20);
+        this.leftHip = new Joint(x - 5, baseY + 25);
+        this.rightHip = new Joint(x + 5, baseY + 25);
+        this.leftKnee = new Joint(x - 7, baseY + 40);
+        this.rightKnee = new Joint(x + 7, baseY + 40);
+        this.leftFoot = new Joint(x - 10, baseY + 55);
+        this.rightFoot = new Joint(x + 10, baseY + 55);
         
         this.joints = [
             this.head, this.neck, this.chest, this.waist,
@@ -255,11 +269,19 @@ class Ragdoll {
             }
         }
         
-        // Update physics
-        for (let i = 0; i < 3; i++) { // Multiple iterations for stability
+        // Update physics with multiple iterations for stability
+        for (let i = 0; i < 4; i++) { // Increased iterations for better stability
             this.joints.forEach(joint => joint.update());
             this.sticks.forEach(stick => stick.update());
         }
+        
+        // Additional ground constraint to prevent sinking
+        this.joints.forEach(joint => {
+            if (joint.y > GROUND_Y) {
+                joint.y = GROUND_Y;
+                joint.oldY = joint.y;
+            }
+        });
         
         // Player-specific updates
         if (this.isPlayer && !this.dead) {
@@ -499,7 +521,7 @@ class Ragdoll {
             x += velX;
             y += velY;
             
-            if (x < 0 || x > canvas.width || y > canvas.height) break;
+            if (x < 0 || x > canvas.width || y > GROUND_Y) break;
             
             if (i % 3 === 0) {
                 ctx.lineTo(x, y);
@@ -611,8 +633,8 @@ class Arrow {
         }
         
         // Ground collision
-        if (this.y > canvas.height - 30) {
-            this.y = canvas.height - 30;
+        if (this.y > GROUND_Y) {
+            this.y = GROUND_Y;
             this.vy = -this.vy * 0.3;
             this.vx *= 0.8;
             
@@ -858,21 +880,22 @@ function init() {
     }
     
     console.log('Canvas size:', canvas.width, 'x', canvas.height);
+    console.log('Ground level:', GROUND_Y);
     
     initAudio();
     
-    // Create player at visible position (adjusted for smaller canvas)
-    gameState.player = new Ragdoll(80, 320, true);
+    // Create player at safe position above ground
+    gameState.player = new Ragdoll(80, GROUND_Y - 80, true);
     console.log('Player created at:', gameState.player.head.x, gameState.player.head.y);
     
-    // Create enemies at visible positions
+    // Create enemies at safe positions
     spawnEnemies();
     
-    // Create platforms (adjusted for smaller canvas)
+    // Create platforms
     gameState.platforms = [
-        new Platform(150, canvas.height - 60, 100, 30),
-        new Platform(350, canvas.height - 90, 80, 60),
-        new Platform(550, canvas.height - 50, 100, 20)
+        new Platform(150, GROUND_Y - 60, 100, 30),
+        new Platform(350, GROUND_Y - 90, 80, 60),
+        new Platform(550, GROUND_Y - 50, 100, 20)
     ];
     
     // Event listeners
@@ -900,11 +923,11 @@ function spawnEnemies() {
     // Clear existing enemies
     gameState.enemies = [];
     
-    // Spawn enemies at clearly visible positions (adjusted for smaller canvas)
+    // Spawn enemies at safe positions above ground
     const enemyPositions = [
-        { x: 250, y: 320 },  // Ground level
-        { x: 400, y: 280 },  // Slightly elevated
-        { x: 600, y: 320 },  // Ground level
+        { x: 250, y: GROUND_Y - 80 },
+        { x: 400, y: GROUND_Y - 120 }, // On platform
+        { x: 600, y: GROUND_Y - 80 },
     ];
     
     enemyPositions.forEach((pos, index) => {
@@ -1045,7 +1068,15 @@ function draw() {
     
     // Draw ground
     ctx.fillStyle = '#228B22';
-    ctx.fillRect(0, canvas.height - 30, canvas.width, 30);
+    ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+    
+    // Draw ground line
+    ctx.strokeStyle = '#1F5F1F';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    ctx.lineTo(canvas.width, GROUND_Y);
+    ctx.stroke();
     
     // Draw platforms
     gameState.platforms.forEach(platform => platform.draw());
@@ -1078,11 +1109,12 @@ function draw() {
     ctx.fillText(`Player: ${gameState.player ? 'Yes' : 'No'}`, 10, 40);
     ctx.fillText(`Enemies: ${gameState.enemies.length}`, 10, 52);
     ctx.fillText(`Arrows: ${gameState.arrows.length}`, 10, 64);
+    ctx.fillText(`Ground: ${GROUND_Y}`, 10, 76);
 }
 
 function restartGame() {
     gameState = {
-        player: new Ragdoll(80, 320, true),
+        player: new Ragdoll(80, GROUND_Y - 80, true),
         enemies: [],
         arrows: [],
         particles: [],
@@ -1100,9 +1132,9 @@ function restartGame() {
         },
         keys: {},
         platforms: [
-            new Platform(150, canvas.height - 60, 100, 30),
-            new Platform(350, canvas.height - 90, 80, 60),
-            new Platform(550, canvas.height - 50, 100, 20)
+            new Platform(150, GROUND_Y - 60, 100, 30),
+            new Platform(350, GROUND_Y - 90, 80, 60),
+            new Platform(550, GROUND_Y - 50, 100, 20)
         ]
     };
     
