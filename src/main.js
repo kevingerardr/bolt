@@ -9,7 +9,7 @@ const MAX_POWER = 60;
 const ARROW_SPEED_MULTIPLIER = 0.15;
 const JOINT_STIFFNESS = 0.8;
 const JOINT_DAMPING = 0.95;
-const GROUND_Y = 420; // Fixed ground level
+const GROUND_Y = 380; // Raised ground level to give more space
 
 // Game state
 let gameState = {
@@ -114,7 +114,7 @@ class Joint {
         // Platform collisions
         for (let platform of gameState.platforms) {
             if (this.x > platform.x && this.x < platform.x + platform.width &&
-                this.y > platform.y && this.y < platform.y + platform.height + 10) {
+                this.y > platform.y - 5 && this.y < platform.y + platform.height + 5) {
                 if (this.oldY <= platform.y) {
                     this.y = platform.y;
                     this.oldY = this.y + velY * 0.3;
@@ -197,8 +197,10 @@ class Ragdoll {
         this.deathTimer = 0;
         this.color = isPlayer ? '#4A90E2' : '#E74C3C';
         
-        // Create joints (body parts) - positioned above ground
-        const baseY = Math.min(y, GROUND_Y - 60); // Ensure character spawns above ground
+        // Create joints (body parts) - positioned properly above ground
+        // Character height is about 80 pixels, so feet should be at y + 55
+        const feetY = Math.min(y + 55, GROUND_Y); // Ensure feet don't go below ground
+        const baseY = feetY - 55; // Work backwards from feet position
         
         this.head = new Joint(x, baseY - 25);
         this.neck = new Joint(x, baseY - 15);
@@ -214,8 +216,8 @@ class Ragdoll {
         this.rightHip = new Joint(x + 5, baseY + 25);
         this.leftKnee = new Joint(x - 7, baseY + 40);
         this.rightKnee = new Joint(x + 7, baseY + 40);
-        this.leftFoot = new Joint(x - 10, baseY + 55);
-        this.rightFoot = new Joint(x + 10, baseY + 55);
+        this.leftFoot = new Joint(x - 10, feetY);
+        this.rightFoot = new Joint(x + 10, feetY);
         
         this.joints = [
             this.head, this.neck, this.chest, this.waist,
@@ -887,15 +889,16 @@ function init() {
     // Create player at safe position above ground
     gameState.player = new Ragdoll(80, GROUND_Y - 80, true);
     console.log('Player created at:', gameState.player.head.x, gameState.player.head.y);
+    console.log('Player feet at:', gameState.player.leftFoot.y, gameState.player.rightFoot.y);
     
     // Create enemies at safe positions
     spawnEnemies();
     
-    // Create platforms
+    // Create platforms - positioned above ground
     gameState.platforms = [
-        new Platform(150, GROUND_Y - 60, 100, 30),
-        new Platform(350, GROUND_Y - 90, 80, 60),
-        new Platform(550, GROUND_Y - 50, 100, 20)
+        new Platform(150, GROUND_Y - 40, 100, 30),  // Platform 1
+        new Platform(350, GROUND_Y - 70, 80, 40),   // Platform 2 (higher)
+        new Platform(550, GROUND_Y - 30, 100, 20)   // Platform 3
     ];
     
     // Event listeners
@@ -923,17 +926,18 @@ function spawnEnemies() {
     // Clear existing enemies
     gameState.enemies = [];
     
-    // Spawn enemies at safe positions above ground
+    // Spawn enemies at safe positions - on platforms and ground
     const enemyPositions = [
-        { x: 250, y: GROUND_Y - 80 },
-        { x: 400, y: GROUND_Y - 120 }, // On platform
-        { x: 600, y: GROUND_Y - 80 },
+        { x: 200, y: GROUND_Y - 80 },        // On platform 1
+        { x: 390, y: GROUND_Y - 150 },       // On platform 2 (higher)
+        { x: 600, y: GROUND_Y - 80 },        // On platform 3
     ];
     
     enemyPositions.forEach((pos, index) => {
         const enemy = new Ragdoll(pos.x, pos.y, false);
         gameState.enemies.push(enemy);
         console.log(`Enemy ${index + 1} created at:`, enemy.head.x, enemy.head.y);
+        console.log(`Enemy ${index + 1} feet at:`, enemy.leftFoot.y, enemy.rightFoot.y);
     });
 }
 
@@ -1132,9 +1136,9 @@ function restartGame() {
         },
         keys: {},
         platforms: [
-            new Platform(150, GROUND_Y - 60, 100, 30),
-            new Platform(350, GROUND_Y - 90, 80, 60),
-            new Platform(550, GROUND_Y - 50, 100, 20)
+            new Platform(150, GROUND_Y - 40, 100, 30),
+            new Platform(350, GROUND_Y - 70, 80, 40),
+            new Platform(550, GROUND_Y - 30, 100, 20)
         ]
     };
     
