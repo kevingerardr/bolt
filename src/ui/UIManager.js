@@ -7,6 +7,7 @@ export class UIManager {
             fireCount: document.getElementById('fireCount'),
             heavyCount: document.getElementById('heavyCount'),
             splitCount: document.getElementById('splitCount'),
+            fireworkCount: document.getElementById('fireworkCount'),
             gameOver: document.getElementById('gameOver'),
             finalScore: document.getElementById('finalScore')
         };
@@ -23,11 +24,13 @@ export class UIManager {
     }
     
     selectArrowType(type, gameState) {
-        if (type !== 'regular' && gameState.arrowCounts[type] <= 0) {
+        if (type !== 'regular' && gameState && gameState.arrowCounts[type] <= 0) {
             return;
         }
         
-        gameState.selectedArrowType = type;
+        if (gameState) {
+            gameState.selectedArrowType = type;
+        }
         
         document.querySelector('.arrow-type.selected').classList.remove('selected');
         document.querySelector(`.arrow-type[data-type="${type}"]`).classList.add('selected');
@@ -49,6 +52,7 @@ export class UIManager {
         this.elements.fireCount.textContent = arrowCounts.fire;
         this.elements.heavyCount.textContent = arrowCounts.heavy;
         this.elements.splitCount.textContent = arrowCounts.split;
+        this.elements.fireworkCount.textContent = arrowCounts.firework;
     }
     
     showGameOver(score) {

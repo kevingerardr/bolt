@@ -66,7 +66,7 @@ export class Renderer {
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         this.ctx.font = '10px Arial';
         this.ctx.fillText(
-            'Keys: 1-Regular 2-Fire 3-Heavy 4-Split | Mouse: Aim & Shoot',
+            'Keys: 1-Regular 2-Fire 3-Heavy 4-Split 5-Firework | Mouse: Aim & Shoot',
             10, this.canvas.height - 8
         );
     }

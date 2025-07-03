@@ -58,6 +58,9 @@ export class InputHandler {
             case '4':
                 this.uiManager.selectArrowType(ARROW_TYPES.SPLIT, this.gameState);
                 break;
+            case '5':
+                this.uiManager.selectArrowType(ARROW_TYPES.FIREWORK, this.gameState);
+                break;
         }
     }
     

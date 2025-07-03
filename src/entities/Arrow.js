@@ -20,6 +20,11 @@ export class Arrow {
         this.stuckTarget = null;
         this.stuckOffsetX = 0;
         this.stuckOffsetY = 0;
+        
+        // Firework arrow specific properties
+        this.explosionTimer = 0;
+        this.maxExplosionTime = 300; // 5 seconds at 60fps
+        this.hasExploded = false;
     }
     
     update(gameState) {
@@ -28,6 +33,14 @@ export class Arrow {
         if (this.stuck && this.stuckTarget) {
             this.x = this.stuckTarget.x + this.stuckOffsetX;
             this.y = this.stuckTarget.y + this.stuckOffsetY;
+            
+            // Continue firework timer even when stuck
+            if (this.type === 'firework' && !this.hasExploded) {
+                this.explosionTimer++;
+                if (this.explosionTimer >= this.maxExplosionTime) {
+                    this._explode(gameState);
+                }
+            }
             return;
         }
         
@@ -35,6 +48,7 @@ export class Arrow {
         this._applyPhysics(gameState);
         this._updateAngle();
         this._handleSplitArrow(gameState);
+        this._handleFireworkArrow(gameState);
         this._checkGroundCollision();
         this._checkBounds();
         this._checkCollisions(gameState);
@@ -63,6 +77,15 @@ export class Arrow {
             this.splitTimer++;
             if (this.splitTimer > 15) {
                 this._split(gameState);
+            }
+        }
+    }
+    
+    _handleFireworkArrow(gameState) {
+        if (this.type === 'firework' && !this.hasExploded) {
+            this.explosionTimer++;
+            if (this.explosionTimer >= this.maxExplosionTime) {
+                this._explode(gameState);
             }
         }
     }
@@ -112,6 +135,49 @@ export class Arrow {
         gameState.arrows.push(leftArrow, rightArrow);
     }
     
+    _explode(gameState) {
+        if (this.hasExploded) return;
+        
+        this.hasExploded = true;
+        
+        // Create explosion particles
+        for (let i = 0; i < 30; i++) {
+            const angle = (i / 30) * Math.PI * 2;
+            const speed = 3 + Math.random() * 4;
+            const particle = new Particle(
+                this.x, this.y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                `hsl(${Math.random() * 60 + 10}, 100%, ${50 + Math.random() * 30}%)`,
+                80 + Math.random() * 40
+            );
+            gameState.particles.push(particle);
+        }
+        
+        // Damage all nearby entities
+        const explosionRadius = 80;
+        const targets = this.isPlayerArrow ? gameState.enemies : [gameState.player];
+        
+        for (let target of targets) {
+            if (!target || target.dead) continue;
+            
+            const dx = target.chest.x - this.x;
+            const dy = target.chest.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < explosionRadius) {
+                const damage = this.damage * (1 - distance / explosionRadius);
+                const forceMultiplier = (1 - distance / explosionRadius) * 8;
+                const forceX = (dx / distance) * forceMultiplier;
+                const forceY = (dy / distance) * forceMultiplier;
+                
+                target.takeDamage(damage, this.x, this.y, forceX, forceY, gameState);
+            }
+        }
+        
+        this.active = false;
+    }
+    
     _checkCollisions(gameState) {
         const targets = this.isPlayerArrow ? gameState.enemies : [gameState.player];
         
@@ -135,7 +201,11 @@ export class Arrow {
         const forceX = this.vx * 0.3;
         const forceY = this.vy * 0.3;
         
-        target.takeDamage(this.damage, this.x, this.y, forceX, forceY, gameState);
+        // For firework arrows, don't deal damage on hit, only on explosion
+        if (this.type !== 'firework') {
+            target.takeDamage(this.damage, this.x, this.y, forceX, forceY, gameState);
+        }
+        
         this._createImpactEffect(gameState);
         
         this.stuck = true;
@@ -182,6 +252,7 @@ export class Arrow {
             case 'fire': return '#ff6600';
             case 'heavy': return '#666666';
             case 'split': return '#4444ff';
+            case 'firework': return '#ffaa00';
             default: return '#8B4513';
         }
     }
@@ -193,6 +264,11 @@ export class Arrow {
         
         this._drawTrail(ctx);
         this._drawArrow(ctx);
+        
+        // Draw firework timer indicator
+        if (this.type === 'firework' && !this.hasExploded) {
+            this._drawFireworkTimer(ctx);
+        }
         
         ctx.restore();
     }
@@ -232,7 +308,32 @@ export class Arrow {
         if (this.type === 'fire') {
             ctx.shadowColor = '#ff6600';
             ctx.shadowBlur = 10;
+        } else if (this.type === 'firework') {
+            ctx.shadowColor = '#ffaa00';
+            ctx.shadowBlur = 8;
         }
+    }
+    
+    _drawFireworkTimer(ctx) {
+        const progress = this.explosionTimer / this.maxExplosionTime;
+        const radius = 8;
+        
+        // Reset transformation for timer
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
+        // Draw timer circle
+        ctx.strokeStyle = '#ffaa00';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - 15, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Draw progress arc
+        ctx.strokeStyle = progress > 0.7 ? '#ff4444' : '#ffaa00';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - 15, radius, -Math.PI/2, -Math.PI/2 + (progress * Math.PI * 2));
+        ctx.stroke();
     }
     
     _getArrowColor() {
@@ -242,6 +343,7 @@ export class Arrow {
             case 'fire': return '#ff4444';
             case 'heavy': return '#444444';
             case 'split': return '#4444ff';
+            case 'firework': return '#ffaa00';
             default: return '#8B4513';
         }
     }
