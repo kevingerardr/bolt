@@ -52,8 +52,8 @@ export class Joint {
             this.x = 0;
             this.oldX = this.x - velX * 0.5;
         }
-        if (this.x > 700) { // Canvas width
-            this.x = 700;
+        if (this.x > 600) { // Updated canvas width
+            this.x = 600;
             this.oldX = this.x - velX * 0.5;
         }
     }

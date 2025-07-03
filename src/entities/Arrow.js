@@ -80,7 +80,7 @@ export class Arrow {
     }
     
     _checkBounds() {
-        if (this.x < -50 || this.x > 750 || this.y > 500) {
+        if (this.x < -50 || this.x > 650 || this.y > 450) {
             this.active = false;
         }
     }

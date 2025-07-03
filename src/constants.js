@@ -5,7 +5,7 @@ export const MAX_POWER = 60;
 export const ARROW_SPEED_MULTIPLIER = 0.15;
 export const JOINT_STIFFNESS = 0.8;
 export const JOINT_DAMPING = 0.95;
-export const GROUND_Y = 380;
+export const GROUND_Y = 330;
 
 export const ARROW_TYPES = {
     REGULAR: 'regular',

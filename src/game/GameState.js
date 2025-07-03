@@ -26,9 +26,9 @@ export class GameState {
     
     _createPlatforms() {
         return [
-            new Platform(150, GROUND_Y - 40, 100, 30),
-            new Platform(350, GROUND_Y - 70, 80, 40),
-            new Platform(550, GROUND_Y - 30, 100, 20)
+            new Platform(120, GROUND_Y - 40, 80, 30),
+            new Platform(280, GROUND_Y - 70, 70, 40),
+            new Platform(450, GROUND_Y - 30, 80, 20)
         ];
     }
     
@@ -36,9 +36,9 @@ export class GameState {
         this.enemies = [];
         
         const enemyPositions = [
-            { x: 200, y: GROUND_Y - 80 },
-            { x: 390, y: GROUND_Y - 150 },
-            { x: 600, y: GROUND_Y - 80 },
+            { x: 160, y: GROUND_Y - 80 },
+            { x: 315, y: GROUND_Y - 150 },
+            { x: 490, y: GROUND_Y - 80 },
         ];
         
         enemyPositions.forEach(pos => {

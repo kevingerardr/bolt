@@ -380,7 +380,7 @@ export class Ragdoll {
             x += velX;
             y += velY;
             
-            if (x < 0 || x > 700 || y > GROUND_Y) break;
+            if (x < 0 || x > 600 || y > GROUND_Y) break;
             
             if (i % 3 === 0) {
                 ctx.lineTo(x, y);
