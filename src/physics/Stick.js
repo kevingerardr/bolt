@@ -15,21 +15,27 @@ export class Stick {
     }
     
     update() {
-        const dx = this.joint1.x - this.joint2.x;
-        const dy = this.joint1.y - this.joint2.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const difference = this.length - distance;
-        const percent = difference / distance / 2;
-        const offsetX = dx * percent * JOINT_STIFFNESS;
-        const offsetY = dy * percent * JOINT_STIFFNESS;
-        
-        if (!this.joint1.pinned) {
-            this.joint1.x += offsetX;
-            this.joint1.y += offsetY;
-        }
-        if (!this.joint2.pinned) {
-            this.joint2.x -= offsetX;
-            this.joint2.y -= offsetY;
+        // Multiple constraint iterations for stiffness
+        for (let i = 0; i < 3; i++) {
+            const dx = this.joint1.x - this.joint2.x;
+            const dy = this.joint1.y - this.joint2.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance === 0) return; // Prevent division by zero
+            
+            const difference = this.length - distance;
+            const percent = difference / distance / 2;
+            const offsetX = dx * percent * JOINT_STIFFNESS;
+            const offsetY = dy * percent * JOINT_STIFFNESS;
+            
+            if (!this.joint1.pinned) {
+                this.joint1.x += offsetX;
+                this.joint1.y += offsetY;
+            }
+            if (!this.joint2.pinned) {
+                this.joint2.x -= offsetX;
+                this.joint2.y -= offsetY;
+            }
         }
     }
     

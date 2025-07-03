@@ -13,19 +13,21 @@ export class Joint {
     update(platforms = []) {
         if (this.pinned) return;
         
-        const velX = (this.x - this.oldX) * JOINT_DAMPING;
-        const velY = (this.y - this.oldY) * JOINT_DAMPING;
+        // Much more damped movement for stiffness
+        const velX = (this.x - this.oldX) * JOINT_DAMPING * 0.5; // Extra damping
+        const velY = (this.y - this.oldY) * JOINT_DAMPING * 0.5; // Extra damping
         
         this.oldX = this.x;
         this.oldY = this.y;
         
-        this.x += velX;
-        this.y += velY + GRAVITY;
+        // Reduced movement for stiffness
+        this.x += velX * 0.3;
+        this.y += velY * 0.3 + GRAVITY * 0.5; // Reduced gravity effect
         
         // Ground collision with proper constraint
         if (this.y > GROUND_Y) {
             this.y = GROUND_Y;
-            this.oldY = this.y + velY * 0.3;
+            this.oldY = this.y + velY * 0.1; // Much less bounce
         }
         
         // Platform collisions
@@ -41,7 +43,7 @@ export class Joint {
                 this.y > platform.y - 5 && this.y < platform.y + platform.height + 5) {
                 if (this.oldY <= platform.y) {
                     this.y = platform.y;
-                    this.oldY = this.y + velY * 0.3;
+                    this.oldY = this.y + velY * 0.1; // Much less bounce
                 }
             }
         }
@@ -50,11 +52,11 @@ export class Joint {
     _handleBoundaryCollisions(velX) {
         if (this.x < 0) {
             this.x = 0;
-            this.oldX = this.x - velX * 0.5;
+            this.oldX = this.x - velX * 0.2; // Less bounce
         }
         if (this.x > 600) { // Updated canvas width
             this.x = 600;
-            this.oldX = this.x - velX * 0.5;
+            this.oldX = this.x - velX * 0.2; // Less bounce
         }
     }
     

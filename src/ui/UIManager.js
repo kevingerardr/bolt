@@ -18,49 +18,78 @@ export class UIManager {
     _setupArrowSelection() {
         document.querySelectorAll('.arrow-type').forEach(element => {
             element.addEventListener('click', () => {
-                this.selectArrowType(element.dataset.type);
+                // Just update UI selection, don't pass gameState
+                this._updateArrowSelection(element.dataset.type);
             });
         });
     }
     
-    selectArrowType(type, gameState) {
-        if (type !== 'regular' && gameState && gameState.arrowCounts[type] <= 0) {
+    _updateArrowSelection(type) {
+        // Remove previous selection
+        const currentSelected = document.querySelector('.arrow-type.selected');
+        if (currentSelected) {
+            currentSelected.classList.remove('selected');
+        }
+        
+        // Add new selection
+        const newSelected = document.querySelector(`.arrow-type[data-type="${type}"]`);
+        if (newSelected) {
+            newSelected.classList.add('selected');
+        }
+    }
+    
+    selectArrowType(type, gameState = null) {
+        // Check if we have enough arrows (only if gameState is provided)
+        if (gameState && type !== 'regular' && gameState.arrowCounts[type] <= 0) {
             return;
         }
         
+        // Update game state if provided
         if (gameState) {
             gameState.selectedArrowType = type;
         }
         
-        document.querySelector('.arrow-type.selected').classList.remove('selected');
-        document.querySelector(`.arrow-type[data-type="${type}"]`).classList.add('selected');
+        // Update UI selection
+        this._updateArrowSelection(type);
     }
     
     updatePowerMeter(chargePower, maxPower) {
-        this.elements.powerFill.style.width = (chargePower / maxPower * 100) + '%';
+        if (this.elements.powerFill) {
+            this.elements.powerFill.style.width = (chargePower / maxPower * 100) + '%';
+        }
     }
     
     updateHealthBar(health, maxHealth) {
-        this.elements.playerHealthFill.style.width = (health / maxHealth * 100) + '%';
+        if (this.elements.playerHealthFill) {
+            this.elements.playerHealthFill.style.width = (health / maxHealth * 100) + '%';
+        }
     }
     
     updateScore(score) {
-        this.elements.scoreValue.textContent = score;
+        if (this.elements.scoreValue) {
+            this.elements.scoreValue.textContent = score;
+        }
     }
     
     updateArrowCounts(arrowCounts) {
-        this.elements.fireCount.textContent = arrowCounts.fire;
-        this.elements.heavyCount.textContent = arrowCounts.heavy;
-        this.elements.splitCount.textContent = arrowCounts.split;
-        this.elements.fireworkCount.textContent = arrowCounts.firework;
+        if (this.elements.fireCount) this.elements.fireCount.textContent = arrowCounts.fire;
+        if (this.elements.heavyCount) this.elements.heavyCount.textContent = arrowCounts.heavy;
+        if (this.elements.splitCount) this.elements.splitCount.textContent = arrowCounts.split;
+        if (this.elements.fireworkCount) this.elements.fireworkCount.textContent = arrowCounts.firework;
     }
     
     showGameOver(score) {
-        this.elements.gameOver.style.display = 'block';
-        this.elements.finalScore.textContent = score;
+        if (this.elements.gameOver) {
+            this.elements.gameOver.style.display = 'block';
+        }
+        if (this.elements.finalScore) {
+            this.elements.finalScore.textContent = score;
+        }
     }
     
     hideGameOver() {
-        this.elements.gameOver.style.display = 'none';
+        if (this.elements.gameOver) {
+            this.elements.gameOver.style.display = 'none';
+        }
     }
 }

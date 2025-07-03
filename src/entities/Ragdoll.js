@@ -92,8 +92,8 @@ export class Ragdoll {
             }
         }
         
-        // Update physics with multiple iterations for stability
-        for (let i = 0; i < 4; i++) {
+        // Update physics with more iterations for stability and stiffness
+        for (let i = 0; i < 6; i++) {
             this.joints.forEach(joint => joint.update(gameState.platforms));
             this.sticks.forEach(stick => stick.update());
         }
@@ -116,7 +116,7 @@ export class Ragdoll {
         this.joints.forEach(joint => {
             if (joint.y > GROUND_Y) {
                 joint.y = GROUND_Y;
-                joint.oldY = joint.y;
+                joint.oldY = joint.y; // No bounce
             }
         });
     }
@@ -171,7 +171,8 @@ export class Ragdoll {
         
         this.health -= damage;
         
-        this._applyImpactForce(impactX, impactY, forceX, forceY);
+        // Reduced impact force for stiffness
+        this._applyImpactForce(impactX, impactY, forceX * 0.3, forceY * 0.3);
         this._createBloodParticles(impactX, impactY, forceX, forceY, gameState);
         
         if (this.health <= 0) {
@@ -198,10 +199,10 @@ export class Ragdoll {
             
             if (distance < 50) {
                 const force = (50 - distance) / 50;
-                joint.x += forceX * force * 0.5;
-                joint.y += forceY * force * 0.5;
-                joint.oldX = joint.x - forceX * force * 0.3;
-                joint.oldY = joint.y - forceY * force * 0.3;
+                joint.x += forceX * force * 0.2; // Reduced force
+                joint.y += forceY * force * 0.2; // Reduced force
+                joint.oldX = joint.x - forceX * force * 0.1; // Reduced force
+                joint.oldY = joint.y - forceY * force * 0.1; // Reduced force
             }
         });
     }
