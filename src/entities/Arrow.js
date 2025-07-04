@@ -1,4 +1,4 @@
-import { GRAVITY, WIND_STRENGTH, ARROW_SPEED_MULTIPLIER, DAMAGE_VALUES, GROUND_Y } from '../constants.js';
+import { WIND_STRENGTH, ARROW_SPEED_MULTIPLIER, DAMAGE_VALUES, GROUND_Y } from '../constants.js';
 import { Particle } from './Particle.js';
 
 export class Arrow {
@@ -78,7 +78,8 @@ export class Arrow {
     }
     
     _applyPhysics(gameState) {
-        this.vy += GRAVITY;
+        // NO GRAVITY - arrows travel in straight lines
+        // Only apply wind effect
         this.vx += gameState.wind * WIND_STRENGTH;
         this.x += this.vx;
         this.y += this.vy;
@@ -126,13 +127,7 @@ export class Arrow {
     
     _checkGroundCollision() {
         if (this.y > GROUND_Y) {
-            this.y = GROUND_Y;
-            this.vy = -this.vy * 0.3;
-            this.vx *= 0.8;
-            
-            if (Math.abs(this.vy) < 1) {
-                this.active = false;
-            }
+            this.active = false;
         }
     }
     

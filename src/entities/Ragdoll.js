@@ -10,6 +10,7 @@ export class Ragdoll {
         this.dead = false;
         this.deathTimer = 0;
         this.color = isPlayer ? '#4A90E2' : '#E74C3C';
+        this.platformIndex = null; // Track which platform this ragdoll is on
         
         // Rigid body properties
         this.x = x;
@@ -65,10 +66,6 @@ export class Ragdoll {
             ['leftHip', 'rightHip'],
             ['leftShoulder', 'rightShoulder']
         ];
-        
-        // Ensure ragdoll is on ground
-        const feetY = Math.min(this.y + 55, GROUND_Y);
-        this.y = feetY - 55;
     }
     
     _initializeProperties() {
@@ -100,12 +97,13 @@ export class Ragdoll {
     update(gameState) {
         if (this.dead) {
             this.deathTimer++;
-            // Don't remove dead ragdolls immediately, let them stay for visual effect
+            // Apply physics to falling dead ragdoll
+            this._updatePhysics(gameState);
             return true;
         }
         
         // Apply physics to the rigid body
-        this._updatePhysics();
+        this._updatePhysics(gameState);
         
         if (this.isPlayer) {
             this._updatePlayerAiming(gameState);
@@ -116,7 +114,15 @@ export class Ragdoll {
         return true;
     }
     
-    _updatePhysics() {
+    _updatePhysics(gameState) {
+        // Check if standing on a collapsed platform
+        if (!this.isPlayer && this.platformIndex && gameState.platforms[this.platformIndex]) {
+            const platform = gameState.platforms[this.platformIndex];
+            if (platform.collapsed) {
+                this.grounded = false;
+            }
+        }
+        
         // Apply gravity if not grounded
         if (!this.grounded) {
             this.velocityY += 0.5;
@@ -137,14 +143,32 @@ export class Ragdoll {
         const rightFoot = this.getBodyPartPosition('rightFoot');
         const lowestY = Math.max(leftFoot.y, rightFoot.y);
         
-        if (lowestY >= GROUND_Y) {
+        // Check platform collisions first
+        let onPlatform = false;
+        for (let platform of gameState.platforms) {
+            if (!platform.collapsed && 
+                this.x > platform.x && this.x < platform.x + platform.width &&
+                lowestY >= platform.y - 5 && lowestY <= platform.y + 10) {
+                this.y = platform.y - (lowestY - this.y);
+                this.velocityY = 0;
+                this.grounded = true;
+                onPlatform = true;
+                
+                // Reduce angular velocity when on platform
+                this.angularVelocity *= 0.8;
+                break;
+            }
+        }
+        
+        // Ground collision if not on platform
+        if (!onPlatform && lowestY >= GROUND_Y) {
             this.y = GROUND_Y - (lowestY - this.y);
             this.velocityY = 0;
             this.grounded = true;
             
             // Reduce angular velocity when grounded
             this.angularVelocity *= 0.8;
-        } else {
+        } else if (!onPlatform) {
             this.grounded = false;
         }
         
@@ -225,7 +249,7 @@ export class Ragdoll {
                 gameState.gameOver = true;
             } else {
                 // Notify game state of enemy death
-                gameState.onEnemyKilled();
+                gameState.onEnemyKilled(this);
             }
             
             return true;
@@ -457,8 +481,8 @@ export class Ragdoll {
         ctx.moveTo(x, y);
         
         for (let i = 0; i < 60; i++) {
-            velY += 0.3; // GRAVITY
-            velX += gameState.wind * 0.02; // WIND_STRENGTH
+            // NO GRAVITY for trajectory prediction - straight line
+            velX += gameState.wind * 0.02; // Only wind effect
             x += velX;
             y += velY;
             

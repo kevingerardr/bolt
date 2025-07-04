@@ -8,7 +8,8 @@ export class GameState {
     }
     
     reset() {
-        this.player = new Ragdoll(80, GROUND_Y - 80, true);
+        // Place player in a tower on the left side
+        this.player = new Ragdoll(80, GROUND_Y - 150, true);
         this.enemies = [];
         this.arrows = [];
         this.particles = [];
@@ -28,29 +29,43 @@ export class GameState {
     
     _createPlatforms() {
         return [
-            new Platform(120, GROUND_Y - 40, 80, 30),
-            new Platform(280, GROUND_Y - 70, 70, 40),
-            new Platform(450, GROUND_Y - 30, 80, 20)
+            // Player tower (permanent)
+            new Platform(30, GROUND_Y - 120, 100, 120, false),
+            
+            // Enemy platforms (collapsible)
+            new Platform(200, GROUND_Y - 60, 80, 60, true),
+            new Platform(320, GROUND_Y - 90, 70, 90, true),
+            new Platform(450, GROUND_Y - 50, 80, 50, true),
+            new Platform(550, GROUND_Y - 80, 70, 80, true)
         ];
     }
     
     spawnEnemies() {
         this.enemies = [];
         
+        // Reset all collapsible platforms
+        this.platforms.forEach(platform => {
+            if (platform.isCollapsible) {
+                platform.collapsed = false;
+                platform.collapseTimer = 0;
+                platform.shakeIntensity = 0;
+            }
+        });
+        
         const enemyPositions = [
-            { x: 160, y: GROUND_Y - 80 },
-            { x: 315, y: GROUND_Y - 150 },
-            { x: 490, y: GROUND_Y - 80 },
+            { x: 240, y: GROUND_Y - 120, platformIndex: 1 },
+            { x: 355, y: GROUND_Y - 150, platformIndex: 2 },
+            { x: 490, y: GROUND_Y - 110, platformIndex: 3 },
+            { x: 585, y: GROUND_Y - 140, platformIndex: 4 }
         ];
         
-        // Add more enemies based on wave number
-        const enemyCount = Math.min(3 + Math.floor(this.waveNumber / 2), 6);
+        // Add enemies based on wave number
+        const enemyCount = Math.min(2 + Math.floor(this.waveNumber / 2), 4);
         
         for (let i = 0; i < enemyCount; i++) {
             const pos = enemyPositions[i % enemyPositions.length];
-            // Spread out additional enemies
-            const offsetX = i >= 3 ? (i - 3) * 40 - 60 : 0;
-            const enemy = new Ragdoll(pos.x + offsetX, pos.y, false);
+            const enemy = new Ragdoll(pos.x, pos.y, false);
+            enemy.platformIndex = pos.platformIndex; // Track which platform this enemy is on
             this.enemies.push(enemy);
         }
     }
@@ -62,9 +77,14 @@ export class GameState {
         }
     }
     
-    onEnemyKilled() {
+    onEnemyKilled(enemy) {
         this.enemiesKilled++;
         this.score += 100;
+        
+        // Start collapsing the platform this enemy was on
+        if (enemy.platformIndex && this.platforms[enemy.platformIndex]) {
+            this.platforms[enemy.platformIndex].startCollapse();
+        }
         
         // Check if all enemies in current wave are dead
         if (this.enemies.filter(e => !e.dead).length === 0) {
@@ -74,7 +94,7 @@ export class GameState {
                 if (!this.gameOver) {
                     this.spawnEnemies();
                 }
-            }, 2000);
+            }, 3000);
         }
     }
 }

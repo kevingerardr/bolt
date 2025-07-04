@@ -72,6 +72,9 @@ export class Game {
             particle.update();
             return !particle.isDead();
         });
+        
+        // Update platforms
+        this.gameState.platforms.forEach(platform => platform.update());
     }
     
     _updateWind() {
