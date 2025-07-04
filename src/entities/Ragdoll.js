@@ -1,5 +1,3 @@
-import { Joint } from '../physics/Joint.js';
-import { Stick } from '../physics/Stick.js';
 import { GROUND_Y, ARROW_SPEED_MULTIPLIER } from '../constants.js';
 import { Arrow } from './Arrow.js';
 import { Particle } from './Particle.js';
@@ -13,64 +11,64 @@ export class Ragdoll {
         this.deathTimer = 0;
         this.color = isPlayer ? '#4A90E2' : '#E74C3C';
         
-        this._createJoints(x, y);
-        this._createSticks();
+        // Rigid body properties
+        this.x = x;
+        this.y = y;
+        this.rotation = 0;
+        this.angularVelocity = 0;
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.grounded = true;
+        
+        this._createBodyStructure();
         this._initializeProperties();
     }
     
-    _createJoints(x, y) {
-        const feetY = Math.min(y + 55, GROUND_Y);
-        const baseY = feetY - 55;
+    _createBodyStructure() {
+        // Define body parts as relative positions from center
+        this.bodyParts = {
+            head: { x: 0, y: -25, radius: 8 },
+            neck: { x: 0, y: -15, radius: 3 },
+            chest: { x: 0, y: 0, radius: 6 },
+            waist: { x: 0, y: 15, radius: 5 },
+            leftShoulder: { x: -10, y: -10, radius: 4 },
+            rightShoulder: { x: 10, y: -10, radius: 4 },
+            leftElbow: { x: -15, y: 5, radius: 3 },
+            rightElbow: { x: 15, y: 5, radius: 3 },
+            leftHand: { x: -20, y: 20, radius: 3 },
+            rightHand: { x: 20, y: 20, radius: 3 },
+            leftHip: { x: -5, y: 25, radius: 4 },
+            rightHip: { x: 5, y: 25, radius: 4 },
+            leftKnee: { x: -7, y: 40, radius: 3 },
+            rightKnee: { x: 7, y: 40, radius: 3 },
+            leftFoot: { x: -10, y: 55, radius: 3 },
+            rightFoot: { x: 10, y: 55, radius: 3 }
+        };
         
-        this.head = new Joint(x, baseY - 25);
-        this.neck = new Joint(x, baseY - 15);
-        this.chest = new Joint(x, baseY);
-        this.waist = new Joint(x, baseY + 15);
-        this.leftShoulder = new Joint(x - 10, baseY - 10);
-        this.rightShoulder = new Joint(x + 10, baseY - 10);
-        this.leftElbow = new Joint(x - 15, baseY + 5);
-        this.rightElbow = new Joint(x + 15, baseY + 5);
-        this.leftHand = new Joint(x - 20, baseY + 20);
-        this.rightHand = new Joint(x + 20, baseY + 20);
-        this.leftHip = new Joint(x - 5, baseY + 25);
-        this.rightHip = new Joint(x + 5, baseY + 25);
-        this.leftKnee = new Joint(x - 7, baseY + 40);
-        this.rightKnee = new Joint(x + 7, baseY + 40);
-        this.leftFoot = new Joint(x - 10, feetY);
-        this.rightFoot = new Joint(x + 10, feetY);
+        // Define connections between body parts
+        this.connections = [
+            ['head', 'neck'],
+            ['neck', 'chest'],
+            ['chest', 'waist'],
+            ['chest', 'leftShoulder'],
+            ['chest', 'rightShoulder'],
+            ['leftShoulder', 'leftElbow'],
+            ['rightShoulder', 'rightElbow'],
+            ['leftElbow', 'leftHand'],
+            ['rightElbow', 'rightHand'],
+            ['waist', 'leftHip'],
+            ['waist', 'rightHip'],
+            ['leftHip', 'leftKnee'],
+            ['rightHip', 'rightKnee'],
+            ['leftKnee', 'leftFoot'],
+            ['rightKnee', 'rightFoot'],
+            ['leftHip', 'rightHip'],
+            ['leftShoulder', 'rightShoulder']
+        ];
         
-        this.joints = [
-            this.head, this.neck, this.chest, this.waist,
-            this.leftShoulder, this.rightShoulder, this.leftElbow, this.rightElbow,
-            this.leftHand, this.rightHand, this.leftHip, this.rightHip,
-            this.leftKnee, this.rightKnee, this.leftFoot, this.rightFoot
-        ];
-    }
-    
-    _createSticks() {
-        this.sticks = [
-            // Spine
-            new Stick(this.head, this.neck, 10),
-            new Stick(this.neck, this.chest, 15),
-            new Stick(this.chest, this.waist, 15),
-            // Arms
-            new Stick(this.chest, this.leftShoulder, 10),
-            new Stick(this.chest, this.rightShoulder, 10),
-            new Stick(this.leftShoulder, this.leftElbow, 12),
-            new Stick(this.rightShoulder, this.rightElbow, 12),
-            new Stick(this.leftElbow, this.leftHand, 15),
-            new Stick(this.rightElbow, this.rightHand, 15),
-            // Legs
-            new Stick(this.waist, this.leftHip, 8),
-            new Stick(this.waist, this.rightHip, 8),
-            new Stick(this.leftHip, this.leftKnee, 15),
-            new Stick(this.rightHip, this.rightKnee, 15),
-            new Stick(this.leftKnee, this.leftFoot, 15),
-            new Stick(this.rightKnee, this.rightFoot, 15),
-            // Cross braces for stability
-            new Stick(this.leftHip, this.rightHip, 10),
-            new Stick(this.leftShoulder, this.rightShoulder, 20)
-        ];
+        // Ensure ragdoll is on ground
+        const feetY = Math.min(this.y + 55, GROUND_Y);
+        this.y = feetY - 55;
     }
     
     _initializeProperties() {
@@ -84,6 +82,21 @@ export class Ragdoll {
         }
     }
     
+    // Get world position of a body part
+    getBodyPartPosition(partName) {
+        const part = this.bodyParts[partName];
+        if (!part) return { x: this.x, y: this.y };
+        
+        const cos = Math.cos(this.rotation);
+        const sin = Math.sin(this.rotation);
+        
+        return {
+            x: this.x + (part.x * cos - part.y * sin),
+            y: this.y + (part.x * sin + part.y * cos),
+            radius: part.radius
+        };
+    }
+    
     update(gameState) {
         if (this.dead) {
             this.deathTimer++;
@@ -92,14 +105,8 @@ export class Ragdoll {
             }
         }
         
-        // Update physics with more iterations for stability and stiffness
-        for (let i = 0; i < 6; i++) {
-            this.joints.forEach(joint => joint.update(gameState.platforms));
-            this.sticks.forEach(stick => stick.update());
-        }
-        
-        // Additional ground constraint to prevent sinking
-        this._enforceGroundConstraints();
+        // Apply physics to the rigid body
+        this._updatePhysics();
         
         if (!this.dead) {
             if (this.isPlayer) {
@@ -112,25 +119,54 @@ export class Ragdoll {
         return true;
     }
     
-    _enforceGroundConstraints() {
-        this.joints.forEach(joint => {
-            if (joint.y > GROUND_Y) {
-                joint.y = GROUND_Y;
-                joint.oldY = joint.y; // No bounce
-            }
-        });
+    _updatePhysics() {
+        // Apply gravity if not grounded
+        if (!this.grounded) {
+            this.velocityY += 0.5;
+        }
+        
+        // Apply velocities
+        this.x += this.velocityX;
+        this.y += this.velocityY;
+        this.rotation += this.angularVelocity;
+        
+        // Apply damping
+        this.velocityX *= 0.95;
+        this.velocityY *= 0.98;
+        this.angularVelocity *= 0.95;
+        
+        // Ground collision
+        const leftFoot = this.getBodyPartPosition('leftFoot');
+        const rightFoot = this.getBodyPartPosition('rightFoot');
+        const lowestY = Math.max(leftFoot.y, rightFoot.y);
+        
+        if (lowestY >= GROUND_Y) {
+            this.y = GROUND_Y - (lowestY - this.y);
+            this.velocityY = 0;
+            this.grounded = true;
+            
+            // Reduce angular velocity when grounded
+            this.angularVelocity *= 0.8;
+        } else {
+            this.grounded = false;
+        }
+        
+        // Boundary constraints
+        if (this.x < 30) {
+            this.x = 30;
+            this.velocityX = Math.abs(this.velocityX) * 0.3;
+        }
+        if (this.x > 570) {
+            this.x = 570;
+            this.velocityX = -Math.abs(this.velocityX) * 0.3;
+        }
     }
     
     _updatePlayerAiming(gameState) {
-        const dx = gameState.mousePos.x - this.rightHand.x;
-        const dy = gameState.mousePos.y - this.rightHand.y;
+        const rightHand = this.getBodyPartPosition('rightHand');
+        const dx = gameState.mousePos.x - rightHand.x;
+        const dy = gameState.mousePos.y - rightHand.y;
         this.aimAngle = Math.atan2(dy, dx);
-        
-        if (gameState.isCharging) {
-            const pullBack = gameState.chargePower * 0.3;
-            this.rightHand.x = this.rightShoulder.x + Math.cos(this.aimAngle) * (25 - pullBack);
-            this.rightHand.y = this.rightShoulder.y + Math.sin(this.aimAngle) * (25 - pullBack);
-        }
     }
     
     _updateEnemyAI(gameState) {
@@ -146,8 +182,11 @@ export class Ragdoll {
     _shootAtPlayer(gameState) {
         if (!gameState.player || gameState.player.dead) return;
         
-        const dx = gameState.player.chest.x - this.rightHand.x;
-        const dy = gameState.player.chest.y - this.rightHand.y;
+        const rightHand = this.getBodyPartPosition('rightHand');
+        const playerChest = gameState.player.getBodyPartPosition('chest');
+        
+        const dx = playerChest.x - rightHand.x;
+        const dy = playerChest.y - rightHand.y;
         const baseAngle = Math.atan2(dy, dx);
         const inaccuracy = (Math.random() - 0.5) * (2 - this.accuracy);
         const aimAngle = baseAngle + inaccuracy;
@@ -158,8 +197,8 @@ export class Ragdoll {
         const vy = Math.sin(aimAngle) * velocity;
         
         const arrow = new Arrow(
-            this.rightHand.x + Math.cos(aimAngle) * 15,
-            this.rightHand.y + Math.sin(aimAngle) * 15,
+            rightHand.x + Math.cos(aimAngle) * 15,
+            rightHand.y + Math.sin(aimAngle) * 15,
             vx, vy, 'regular', false
         );
         
@@ -171,13 +210,18 @@ export class Ragdoll {
         
         this.health -= damage;
         
-        // Reduced impact force for stiffness
-        this._applyImpactForce(impactX, impactY, forceX * 0.3, forceY * 0.3);
+        // Apply impact forces to the rigid body
+        this._applyImpactForce(impactX, impactY, forceX, forceY);
         this._createBloodParticles(impactX, impactY, forceX, forceY, gameState);
         
         if (this.health <= 0) {
             this.health = 0;
             this.dead = true;
+            
+            // Apply death forces
+            this.velocityX += forceX * 0.5;
+            this.velocityY += forceY * 0.5;
+            this.angularVelocity += (Math.random() - 0.5) * 0.3;
             
             if (this.isPlayer) {
                 gameState.gameOver = true;
@@ -192,19 +236,20 @@ export class Ragdoll {
     }
     
     _applyImpactForce(impactX, impactY, forceX, forceY) {
-        this.joints.forEach(joint => {
-            const dx = joint.x - impactX;
-            const dy = joint.y - impactY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < 50) {
-                const force = (50 - distance) / 50;
-                joint.x += forceX * force * 0.2; // Reduced force
-                joint.y += forceY * force * 0.2; // Reduced force
-                joint.oldX = joint.x - forceX * force * 0.1; // Reduced force
-                joint.oldY = joint.y - forceY * force * 0.1; // Reduced force
-            }
-        });
+        // Calculate impact relative to center of mass
+        const dx = impactX - this.x;
+        const dy = impactY - this.y;
+        
+        // Apply linear force
+        this.velocityX += forceX * 0.1;
+        this.velocityY += forceY * 0.1;
+        
+        // Apply rotational force based on impact position
+        const torque = (dx * forceY - dy * forceX) * 0.001;
+        this.angularVelocity += torque;
+        
+        // Make sure we're not grounded after impact
+        this.grounded = false;
     }
     
     _createBloodParticles(impactX, impactY, forceX, forceY, gameState) {
@@ -234,14 +279,15 @@ export class Ragdoll {
             gameState.arrowCounts[arrowType]--;
         }
         
+        const rightHand = this.getBodyPartPosition('rightHand');
         const power = gameState.chargePower;
         const velocity = power * ARROW_SPEED_MULTIPLIER;
         const vx = Math.cos(this.aimAngle) * velocity;
         const vy = Math.sin(this.aimAngle) * velocity;
         
         const arrow = new Arrow(
-            this.rightHand.x + Math.cos(this.aimAngle) * 15,
-            this.rightHand.y + Math.sin(this.aimAngle) * 15,
+            rightHand.x + Math.cos(this.aimAngle) * 15,
+            rightHand.y + Math.sin(this.aimAngle) * 15,
             vx, vy, arrowType, true
         );
         
@@ -254,16 +300,32 @@ export class Ragdoll {
     draw(ctx, gameState) {
         ctx.save();
         
-        // Draw sticks first
-        this.sticks.forEach(stick => {
-            stick.thickness = this.dead ? 2 : 3;
-            stick.draw(ctx);
+        // Draw connections (bones/sticks)
+        ctx.strokeStyle = this.dead ? '#999' : '#8B4513';
+        ctx.lineWidth = this.dead ? 2 : 3;
+        ctx.lineCap = 'round';
+        
+        this.connections.forEach(([part1Name, part2Name]) => {
+            const part1 = this.getBodyPartPosition(part1Name);
+            const part2 = this.getBodyPartPosition(part2Name);
+            
+            ctx.beginPath();
+            ctx.moveTo(part1.x, part1.y);
+            ctx.lineTo(part2.x, part2.y);
+            ctx.stroke();
         });
         
-        // Draw joints
-        this.joints.forEach(joint => {
-            joint.radius = this.dead ? 3 : 4;
-            joint.draw(ctx);
+        // Draw body parts (joints)
+        Object.keys(this.bodyParts).forEach(partName => {
+            const part = this.getBodyPartPosition(partName);
+            
+            ctx.fillStyle = this.dead ? '#DDD' : '#FFE4B5';
+            ctx.beginPath();
+            ctx.arc(part.x, part.y, part.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#DEB887';
+            ctx.lineWidth = 1;
+            ctx.stroke();
         });
         
         this._drawHead(ctx);
@@ -281,44 +343,62 @@ export class Ragdoll {
     }
     
     _drawHead(ctx) {
+        const head = this.getBodyPartPosition('head');
+        
         ctx.fillStyle = this.dead ? '#DDD' : '#FFE4B5';
         ctx.beginPath();
-        ctx.arc(this.head.x, this.head.y, 8, 0, Math.PI * 2);
+        ctx.arc(head.x, head.y, 8, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#DEB887';
         ctx.lineWidth = 2;
         ctx.stroke();
         
         if (!this.dead) {
+            // Draw eyes relative to head rotation
+            const eyeOffset = 3;
+            const cos = Math.cos(this.rotation);
+            const sin = Math.sin(this.rotation);
+            
             ctx.fillStyle = '#000';
             ctx.beginPath();
-            ctx.arc(this.head.x - 3, this.head.y - 2, 1.5, 0, Math.PI * 2);
-            ctx.arc(this.head.x + 3, this.head.y - 2, 1.5, 0, Math.PI * 2);
+            ctx.arc(
+                head.x + (-eyeOffset * cos - (-2) * sin),
+                head.y + (-eyeOffset * sin + (-2) * cos),
+                1.5, 0, Math.PI * 2
+            );
+            ctx.arc(
+                head.x + (eyeOffset * cos - (-2) * sin),
+                head.y + (eyeOffset * sin + (-2) * cos),
+                1.5, 0, Math.PI * 2
+            );
             ctx.fill();
         }
     }
     
     _drawBow(ctx, gameState) {
+        const leftHand = this.getBodyPartPosition('leftHand');
+        
         ctx.strokeStyle = '#8B4513';
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         
-        const bowStartX = this.leftHand.x;
-        const bowStartY = this.leftHand.y;
-        const bowEndX = bowStartX + Math.cos(this.aimAngle) * this.bowLength;
-        const bowEndY = bowStartY + Math.sin(this.aimAngle) * this.bowLength;
+        const bowEndX = leftHand.x + Math.cos(this.aimAngle) * this.bowLength;
+        const bowEndY = leftHand.y + Math.sin(this.aimAngle) * this.bowLength;
         
         ctx.beginPath();
-        ctx.moveTo(bowStartX, bowStartY);
+        ctx.moveTo(leftHand.x, leftHand.y);
         ctx.lineTo(bowEndX, bowEndY);
         ctx.stroke();
         
         if (gameState.isCharging) {
-            this._drawBowString(ctx);
+            this._drawBowString(ctx, gameState);
         }
     }
     
-    _drawBowString(ctx) {
+    _drawBowString(ctx, gameState) {
+        const leftHand = this.getBodyPartPosition('leftHand');
+        const rightHand = this.getBodyPartPosition('rightHand');
+        
         ctx.strokeStyle = '#654321';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -326,22 +406,23 @@ export class Ragdoll {
         const perpAngle = this.aimAngle + Math.PI / 2;
         
         ctx.moveTo(
-            this.leftHand.x + Math.cos(perpAngle) * 8,
-            this.leftHand.y + Math.sin(perpAngle) * 8
+            leftHand.x + Math.cos(perpAngle) * 8,
+            leftHand.y + Math.sin(perpAngle) * 8
         );
-        ctx.lineTo(this.rightHand.x, this.rightHand.y);
+        ctx.lineTo(rightHand.x, rightHand.y);
         ctx.lineTo(
-            this.leftHand.x - Math.cos(perpAngle) * 8,
-            this.leftHand.y - Math.sin(perpAngle) * 8
+            leftHand.x - Math.cos(perpAngle) * 8,
+            leftHand.y - Math.sin(perpAngle) * 8
         );
         ctx.stroke();
     }
     
     _drawHealthBar(ctx) {
+        const head = this.getBodyPartPosition('head');
         const barWidth = 40;
         const barHeight = 6;
-        const barX = this.head.x - barWidth / 2;
-        const barY = this.head.y - 20;
+        const barX = head.x - barWidth / 2;
+        const barY = head.y - 20;
         
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.fillRect(barX, barY, barWidth, barHeight);
@@ -358,6 +439,7 @@ export class Ragdoll {
     _drawTrajectoryPrediction(ctx, gameState) {
         if (!gameState.isCharging || this.dead) return;
         
+        const rightHand = this.getBodyPartPosition('rightHand');
         const power = gameState.chargePower;
         const velocity = power * ARROW_SPEED_MULTIPLIER;
         const vx = Math.cos(this.aimAngle) * velocity;
@@ -368,8 +450,8 @@ export class Ragdoll {
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         
-        let x = this.rightHand.x;
-        let y = this.rightHand.y;
+        let x = rightHand.x;
+        let y = rightHand.y;
         let velX = vx;
         let velY = vy;
         

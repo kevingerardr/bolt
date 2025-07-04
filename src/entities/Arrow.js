@@ -31,8 +31,10 @@ export class Arrow {
         if (!this.active) return;
         
         if (this.stuck && this.stuckTarget) {
-            this.x = this.stuckTarget.x + this.stuckOffsetX;
-            this.y = this.stuckTarget.y + this.stuckOffsetY;
+            // For rigid ragdolls, update position based on target's rigid body
+            const targetPos = this.stuckTarget.getBodyPartPosition(this.stuckPartName);
+            this.x = targetPos.x + this.stuckOffsetX;
+            this.y = targetPos.y + this.stuckOffsetY;
             
             // Continue firework timer even when stuck
             if (this.type === 'firework' && !this.hasExploded) {
@@ -161,8 +163,9 @@ export class Arrow {
         for (let target of targets) {
             if (!target || target.dead) continue;
             
-            const dx = target.chest.x - this.x;
-            const dy = target.chest.y - this.y;
+            const targetCenter = target.getBodyPartPosition('chest');
+            const dx = targetCenter.x - this.x;
+            const dy = targetCenter.y - this.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance < explosionRadius) {
@@ -184,20 +187,22 @@ export class Arrow {
         for (let target of targets) {
             if (!target || target.dead) continue;
             
-            for (let joint of target.joints) {
-                const dx = this.x - joint.x;
-                const dy = this.y - joint.y;
+            // Check collision with each body part
+            for (let partName of Object.keys(target.bodyParts)) {
+                const part = target.getBodyPartPosition(partName);
+                const dx = this.x - part.x;
+                const dy = this.y - part.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                if (distance < joint.radius + 3) {
-                    this._handleHit(target, joint, gameState);
+                if (distance < part.radius + 3) {
+                    this._handleHit(target, partName, part, gameState);
                     return;
                 }
             }
         }
     }
     
-    _handleHit(target, joint, gameState) {
+    _handleHit(target, partName, part, gameState) {
         const forceX = this.vx * 0.3;
         const forceY = this.vy * 0.3;
         
@@ -209,9 +214,10 @@ export class Arrow {
         this._createImpactEffect(gameState);
         
         this.stuck = true;
-        this.stuckTarget = joint;
-        this.stuckOffsetX = this.x - joint.x;
-        this.stuckOffsetY = this.y - joint.y;
+        this.stuckTarget = target;
+        this.stuckPartName = partName;
+        this.stuckOffsetX = this.x - part.x;
+        this.stuckOffsetY = this.y - part.y;
         this.vx = 0;
         this.vy = 0;
     }

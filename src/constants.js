@@ -3,8 +3,6 @@ export const GRAVITY = 0.3;
 export const WIND_STRENGTH = 0.02;
 export const MAX_POWER = 60;
 export const ARROW_SPEED_MULTIPLIER = 0.15;
-export const JOINT_STIFFNESS = 0.98; // Increased even more for maximum stiffness
-export const JOINT_DAMPING = 0.99; // Increased for maximum stiffness
 export const GROUND_Y = 330;
 
 export const ARROW_TYPES = {
