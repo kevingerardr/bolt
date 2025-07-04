@@ -22,6 +22,8 @@ export class GameState {
         this.arrowCounts = { ...INITIAL_ARROW_COUNTS };
         this.keys = {};
         this.platforms = this._createPlatforms();
+        this.enemiesKilled = 0;
+        this.waveNumber = 1;
     }
     
     _createPlatforms() {
@@ -41,16 +43,38 @@ export class GameState {
             { x: 490, y: GROUND_Y - 80 },
         ];
         
-        enemyPositions.forEach(pos => {
-            const enemy = new Ragdoll(pos.x, pos.y, false);
+        // Add more enemies based on wave number
+        const enemyCount = Math.min(3 + Math.floor(this.waveNumber / 2), 6);
+        
+        for (let i = 0; i < enemyCount; i++) {
+            const pos = enemyPositions[i % enemyPositions.length];
+            // Spread out additional enemies
+            const offsetX = i >= 3 ? (i - 3) * 40 - 60 : 0;
+            const enemy = new Ragdoll(pos.x + offsetX, pos.y, false);
             this.enemies.push(enemy);
-        });
+        }
     }
     
     updateWind() {
         if (Math.random() < 0.01) {
             this.wind += (Math.random() - 0.5) * 0.1;
             this.wind = Math.max(-1, Math.min(1, this.wind));
+        }
+    }
+    
+    onEnemyKilled() {
+        this.enemiesKilled++;
+        this.score += 100;
+        
+        // Check if all enemies in current wave are dead
+        if (this.enemies.filter(e => !e.dead).length === 0) {
+            this.waveNumber++;
+            // Respawn enemies after a delay
+            setTimeout(() => {
+                if (!this.gameOver) {
+                    this.spawnEnemies();
+                }
+            }, 2000);
         }
     }
 }

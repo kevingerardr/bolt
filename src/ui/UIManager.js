@@ -18,8 +18,17 @@ export class UIManager {
     _setupArrowSelection() {
         document.querySelectorAll('.arrow-type').forEach(element => {
             element.addEventListener('click', () => {
-                // Just update UI selection, don't pass gameState
+                // Update UI selection and get the game state from the global game instance
                 this._updateArrowSelection(element.dataset.type);
+                
+                // Update the game state if available
+                if (window.game && window.game.gameState) {
+                    const type = element.dataset.type;
+                    if (type !== 'regular' && window.game.gameState.arrowCounts[type] <= 0) {
+                        return; // Don't select if no arrows left
+                    }
+                    window.game.gameState.selectedArrowType = type;
+                }
             });
         });
     }

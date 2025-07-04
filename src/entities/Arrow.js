@@ -18,13 +18,17 @@ export class Arrow {
         this.hasSplit = false;
         this.stuck = false;
         this.stuckTarget = null;
+        this.stuckPartName = '';
         this.stuckOffsetX = 0;
         this.stuckOffsetY = 0;
         
         // Firework arrow specific properties
         this.explosionTimer = 0;
-        this.maxExplosionTime = 300; // 5 seconds at 60fps
+        this.maxExplosionTime = 180; // 3 seconds at 60fps
         this.hasExploded = false;
+        
+        // Fire arrow specific properties
+        this.fireParticleTimer = 0;
     }
     
     update(gameState) {
@@ -43,6 +47,15 @@ export class Arrow {
                     this._explode(gameState);
                 }
             }
+            
+            // Create fire particles for stuck fire arrows
+            if (this.type === 'fire') {
+                this.fireParticleTimer++;
+                if (this.fireParticleTimer % 5 === 0) {
+                    this._createFireParticles(gameState);
+                }
+            }
+            
             return;
         }
         
@@ -51,6 +64,7 @@ export class Arrow {
         this._updateAngle();
         this._handleSplitArrow(gameState);
         this._handleFireworkArrow(gameState);
+        this._handleFireArrow(gameState);
         this._checkGroundCollision();
         this._checkBounds();
         this._checkCollisions(gameState);
@@ -88,6 +102,24 @@ export class Arrow {
             this.explosionTimer++;
             if (this.explosionTimer >= this.maxExplosionTime) {
                 this._explode(gameState);
+            }
+        }
+    }
+    
+    _handleFireArrow(gameState) {
+        if (this.type === 'fire') {
+            this.fireParticleTimer++;
+            if (this.fireParticleTimer % 3 === 0) {
+                // Create trailing fire particles
+                const particle = new Particle(
+                    this.x + (Math.random() - 0.5) * 8,
+                    this.y + (Math.random() - 0.5) * 8,
+                    (Math.random() - 0.5) * 2,
+                    -Math.random() * 2,
+                    `hsl(${Math.random() * 60}, 100%, 50%)`,
+                    20 + Math.random() * 20
+                );
+                gameState.particles.push(particle);
             }
         }
     }

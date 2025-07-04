@@ -14,6 +14,9 @@ function init() {
     }
     
     game = new Game(canvas, ctx);
+    
+    // Make game available globally for UI interactions
+    window.game = game;
 }
 
 function restartGame() {

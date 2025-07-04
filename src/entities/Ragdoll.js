@@ -100,20 +100,17 @@ export class Ragdoll {
     update(gameState) {
         if (this.dead) {
             this.deathTimer++;
-            if (this.deathTimer > 300) {
-                return false;
-            }
+            // Don't remove dead ragdolls immediately, let them stay for visual effect
+            return true;
         }
         
         // Apply physics to the rigid body
         this._updatePhysics();
         
-        if (!this.dead) {
-            if (this.isPlayer) {
-                this._updatePlayerAiming(gameState);
-            } else {
-                this._updateEnemyAI(gameState);
-            }
+        if (this.isPlayer) {
+            this._updatePlayerAiming(gameState);
+        } else {
+            this._updateEnemyAI(gameState);
         }
         
         return true;
@@ -224,9 +221,11 @@ export class Ragdoll {
             this.angularVelocity += (Math.random() - 0.5) * 0.3;
             
             if (this.isPlayer) {
+                // Only set game over for player death
                 gameState.gameOver = true;
             } else {
-                gameState.score += 100;
+                // Notify game state of enemy death
+                gameState.onEnemyKilled();
             }
             
             return true;

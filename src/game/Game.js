@@ -42,7 +42,6 @@ export class Game {
         this._updateCharging();
         this._updateEntities();
         this._updateWind();
-        this._checkEnemyRespawn();
         this._updateUI();
     }
     
@@ -56,13 +55,11 @@ export class Game {
     _updateEntities() {
         // Update player
         if (this.gameState.player) {
-            if (!this.gameState.player.update(this.gameState)) {
-                this.gameState.player = null;
-            }
+            this.gameState.player.update(this.gameState);
         }
         
-        // Update enemies
-        this.gameState.enemies = this.gameState.enemies.filter(enemy => enemy.update(this.gameState));
+        // Update enemies - keep them even when dead for visual effect
+        this.gameState.enemies.forEach(enemy => enemy.update(this.gameState));
         
         // Update arrows
         this.gameState.arrows = this.gameState.arrows.filter(arrow => {
@@ -79,14 +76,6 @@ export class Game {
     
     _updateWind() {
         this.gameState.updateWind();
-    }
-    
-    _checkEnemyRespawn() {
-        if (this.gameState.enemies.length === 0 && !this.gameState.gameOver) {
-            setTimeout(() => {
-                this.gameState.spawnEnemies();
-            }, 3000);
-        }
     }
     
     _updateUI() {
